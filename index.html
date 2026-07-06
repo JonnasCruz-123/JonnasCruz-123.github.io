@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Conversa 1</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -11,8 +11,11 @@
             overflow: hidden;
             cursor: crosshair;
             font-family: 'Segoe UI', sans-serif;
+            touch-action: none;
+            -webkit-user-select: none; user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-        canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
 
         #contador {
             position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -123,6 +126,53 @@
             cursor:pointer; font-size:.9rem; transition:background .2s;
         }
         #btn-close-shop:hover { background:rgba(255,255,255,.2); color:#fff; }
+
+        /* ── Mobile / touch controls ─────────────────────────────── */
+        /* Joystick */
+        #joystick {
+            position: fixed; left: 28px; bottom: 34px; z-index: 300;
+            width: 130px; height: 130px; border-radius: 50%;
+            background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.18), rgba(0,0,0,.35));
+            border: 2px solid rgba(255,255,255,.4);
+            box-shadow: 0 4px 18px rgba(0,0,0,.4), inset 0 0 20px rgba(0,0,0,.3);
+            display: none; touch-action: none;
+        }
+        #joy-knob {
+            position: absolute; left: 50%; top: 50%; width: 58px; height: 58px;
+            margin: -29px 0 0 -29px; border-radius: 50%;
+            background: radial-gradient(circle at 40% 35%, #fff, #9fb4d0 60%, #5a708f);
+            border: 2px solid rgba(255,255,255,.7);
+            box-shadow: 0 3px 10px rgba(0,0,0,.5);
+            transform: translate(0,0);
+        }
+        /* Jump button */
+        #btn-jump {
+            position: fixed; right: 30px; bottom: 46px; z-index: 300;
+            width: 96px; height: 96px; border-radius: 50%;
+            background: radial-gradient(circle at 50% 38%, #57d977, #2e8b45 70%, #1c5c2c);
+            border: 3px solid rgba(255,255,255,.55); color: #fff;
+            font-size: 1rem; font-weight: bold; letter-spacing: 1px;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; touch-action: none; cursor: pointer;
+            box-shadow: 0 5px 18px rgba(0,0,0,.45), inset 0 2px 8px rgba(255,255,255,.3);
+            text-shadow: 0 1px 3px rgba(0,0,0,.5); user-select: none;
+        }
+        #btn-jump:active { transform: scale(0.92); filter: brightness(1.15); }
+        #btn-jump .jico { font-size: 1.9rem; line-height: 1; }
+
+        #mobile-hint {
+            position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+            z-index: 250; background: rgba(0,0,0,.6); color: #fff;
+            font-size: .8rem; font-weight: 600; padding: 7px 16px; border-radius: 20px;
+            pointer-events: none; display: none; white-space: nowrap;
+            box-shadow: 0 3px 12px rgba(0,0,0,.4); transition: opacity .5s;
+        }
+
+        body.touch #joystick.vis,
+        body.touch #btn-jump.vis { display: flex; }
+        body.touch #mobile-hint.vis { display: block; }
+        /* keyboard hint is irrelevant on touch devices */
+        body.touch #char-hint { display: none !important; }
     </style>
 </head>
 <body>
@@ -138,7 +188,12 @@
     <div class="wslot" id="ws2">2<br>💣</div>
 </div>
 <div id="locked-msg">🔒 Compre o Foguete na Loja!</div>
-<div id="char-hint">A/D ou ← → mover<br>Clique = espingarda</div>
+<div id="char-hint">A/D ou ← → mover · Espaço = pular<br>Clique = espingarda</div>
+
+<!-- Mobile / touch controls -->
+<div id="mobile-hint">🕹️ mover · ⬆️ pular · ✌️ 2 dedos = 🚀</div>
+<div id="joystick"><div id="joy-knob"></div></div>
+<button id="btn-jump"><span class="jico">⬆️</span>PULAR</button>
 
 <button id="btn-loja">
     <span class="loja-icon">🛒</span>
@@ -170,6 +225,13 @@ const charHint  = document.getElementById('char-hint');
 const lojaOv    = document.getElementById('loja-ov');
 const svEl      = document.getElementById('sv');
 const shopGrid  = document.getElementById('shop-grid');
+const joystick  = document.getElementById('joystick');
+const joyKnob   = document.getElementById('joy-knob');
+const btnJump   = document.getElementById('btn-jump');
+const mobileHint= document.getElementById('mobile-hint');
+
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if(isTouch) document.body.classList.add('touch');
 
 // ── constants ───────────────────────────────────────────────────────────────
 const NUM_BIRDS     = 100;
@@ -203,7 +265,15 @@ const pellets     = [];
 let   grassData   = [];
 
 // ── character ─────────────────────────────────────────────────────────────────
-const ch = { x:0, y:0, facing:1, walking:false, frame:0, shotCD:0 };
+const ch = { x:0, y:0, vy:0, onGround:true, facing:1, walking:false, frame:0, shotCD:0 };
+let joyX = 0; // analog horizontal input from touch joystick (-1..1)
+
+const GRAVITY  = 0.9;
+const JUMP_VEL = -16;
+
+function jump(){
+    if(P.character && ch.onGround){ ch.vy = JUMP_VEL; ch.onGround = false; }
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function rand(a,b){ return Math.random()*(b-a)+a; }
@@ -494,6 +564,15 @@ function showLocked(){
     lockedTimer=setTimeout(()=>lockedMsg.classList.remove('show'),2000);
 }
 
+// Show/hide on-screen touch controls based on what the player owns.
+function updateMobileControls(){
+    if(!isTouch) return;
+    joystick.classList.toggle('vis', P.character);
+    btnJump.classList.toggle('vis', P.character);
+    mobileHint.classList.toggle('vis', P.character || P.rocket || P.bazooka);
+    if(!P.character) joyX=0;
+}
+
 // ── input ─────────────────────────────────────────────────────────────────────
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('mousedown',e=>{ if(e.button===2)rightHeld=true; });
@@ -503,47 +582,115 @@ window.addEventListener('keydown',e=>{
     keys[e.code]=true;
     if(e.code==='Digit1'&&P.rocket)  { currentWep=1; refreshWHUD(); }
     if(e.code==='Digit2'&&P.bazooka) { currentWep=2; refreshWHUD(); }
+    if(e.code==='Space'||e.code==='KeyW'||e.code==='ArrowUp'){ jump(); e.preventDefault(); }
 });
 window.addEventListener('keyup',e=>keys[e.code]=false);
 
-canvas.addEventListener('mousedown',e=>{
-    if(e.button===0 && rightHeld){
-        if(currentWep===1){
-            if(!P.rocket){ showLocked(); return; }
-            if(!weaponReady)return;
-            rockets.push({x:mouseX,y:canvas.height+10,speed:P.rocketBig?13:16,tick:0,big:P.rocketBig});
-            startCD(CD_ROCKET,'🚀 RECARREGANDO...');
-        } else if(currentWep===2){
-            if(!P.bazooka)return;
-            if(!weaponReady)return;
-            bazookas.push({x:mouseX,y:canvas.height+10,speed:6,tick:0});
-            startCD(CD_BAZOOKA,'💣 RECARREGANDO...');
-        }
+// Launch the current heavy weapon (rocket/bazooka) from screen-x position.
+function launchRocket(x){
+    if(currentWep===2 && P.bazooka){
+        if(!weaponReady)return;
+        bazookas.push({x,y:canvas.height+10,speed:6,tick:0});
+        startCD(CD_BAZOOKA,'💣 RECARREGANDO...');
         return;
     }
-    if(e.button===0){
-        const mx=e.clientX, my=e.clientY;
-        // character shoot
-        if(P.character && ch.shotCD<=0){
-            fireShotgun(ch.x,ch.y-10,mx,my);
-            ch.shotCD=38;
-        }
-        // kill birds
-        for(let b of birds){
-            if(b.dead)continue;
-            const dx=mx-b.x, dy=my-b.y;
-            if(Math.sqrt(dx*dx+dy*dy)<b.size*2.5){ killBird(b); break; }
-        }
-        // kill squirrels
-        if(P.character){
-            for(let sq of squirrels){
-                if(sq.dead)continue;
-                const dx=mx-sq.x, dy=my-sq.y;
-                if(Math.sqrt(dx*dx+dy*dy)<sq.size*2.2){ killSquirrel(sq); break; }
-            }
+    // default to rocket
+    if(!P.rocket){ showLocked(); return; }
+    if(!weaponReady)return;
+    rockets.push({x,y:canvas.height+10,speed:P.rocketBig?13:16,tick:0,big:P.rocketBig});
+    startCD(CD_ROCKET,'🚀 RECARREGANDO...');
+}
+
+// Tap/click at (mx,my): character shotgun + kill birds/squirrels near the point.
+function handleTap(mx,my){
+    if(P.character && ch.shotCD<=0){
+        fireShotgun(ch.x,ch.y-10,mx,my);
+        ch.shotCD=38;
+    }
+    for(let b of birds){
+        if(b.dead)continue;
+        const dx=mx-b.x, dy=my-b.y;
+        if(Math.sqrt(dx*dx+dy*dy)<b.size*2.5){ killBird(b); break; }
+    }
+    if(P.character){
+        for(let sq of squirrels){
+            if(sq.dead)continue;
+            const dx=mx-sq.x, dy=my-sq.y;
+            if(Math.sqrt(dx*dx+dy*dy)<sq.size*2.2){ killSquirrel(sq); break; }
         }
     }
+}
+
+canvas.addEventListener('mousedown',e=>{
+    if(e.button===0 && rightHeld){ launchRocket(mouseX); return; }
+    if(e.button===0) handleTap(e.clientX, e.clientY);
 });
+
+// ── touch controls ──────────────────────────────────────────────────────────
+// Two fingers on the play area launch the rocket; a single tap shoots.
+const playTouches = new Map(); // id -> {x,y}
+let rocketFiredThisGesture = false;
+
+canvas.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches) playTouches.set(t.identifier,{x:t.clientX,y:t.clientY});
+    if(playTouches.size>=2){
+        if(!rocketFiredThisGesture){
+            // launch from the midpoint of the two fingers
+            let sx=0,n=0;
+            for(const p of playTouches.values()){ sx+=p.x; n++; }
+            launchRocket(sx/n);
+            rocketFiredThisGesture=true;
+        }
+    } else if(playTouches.size===1){
+        const t=e.changedTouches[0];
+        handleTap(t.clientX,t.clientY);
+    }
+},{passive:false});
+
+canvas.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+        if(playTouches.has(t.identifier)) playTouches.set(t.identifier,{x:t.clientX,y:t.clientY});
+    }
+},{passive:false});
+
+function endPlayTouch(e){
+    e.preventDefault();
+    for(const t of e.changedTouches) playTouches.delete(t.identifier);
+    if(playTouches.size===0) rocketFiredThisGesture=false;
+}
+canvas.addEventListener('touchend',endPlayTouch,{passive:false});
+canvas.addEventListener('touchcancel',endPlayTouch,{passive:false});
+
+// ── joystick ──────────────────────────────────────────────────────────────────
+let joyId=null;
+function joyUpdate(clientX){
+    const r=joystick.getBoundingClientRect();
+    const cx=r.left+r.width/2, max=r.width/2;
+    let dx=Math.max(-max,Math.min(max,clientX-cx));
+    joyX=dx/max;
+    joyKnob.style.transform=`translate(${dx}px,0)`;
+}
+function joyReset(){ joyX=0; joyId=null; joyKnob.style.transform='translate(0,0)'; }
+
+joystick.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    const t=e.changedTouches[0]; joyId=t.identifier; joyUpdate(t.clientX);
+},{passive:false});
+joystick.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){ if(t.identifier===joyId){ joyUpdate(t.clientX); break; } }
+},{passive:false});
+function joyEnd(e){
+    for(const t of e.changedTouches){ if(t.identifier===joyId){ joyReset(); break; } }
+}
+joystick.addEventListener('touchend',joyEnd,{passive:false});
+joystick.addEventListener('touchcancel',joyEnd,{passive:false});
+
+// ── jump button ────────────────────────────────────────────────────────────────
+btnJump.addEventListener('touchstart',e=>{ e.preventDefault(); jump(); },{passive:false});
+btnJump.addEventListener('click',e=>{ e.preventDefault(); jump(); });
 
 // ── shop ──────────────────────────────────────────────────────────────────────
 const ITEMS=[
@@ -588,11 +735,12 @@ function doBuy(id,price){
     P[id]=true;
     if(id==='character'){
         for(let i=0;i<NUM_SQUIRRELS;i++) squirrels.push(spawnSquirrel());
-        ch.x=canvas.width/2; ch.y=groundY()-40;
+        ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true;
         charHint.classList.add('vis');
         buildGrass();
     }
     refreshWHUD();
+    updateMobileControls();
     renderShop();
 }
 
@@ -683,12 +831,20 @@ function animate(now){
 
     // character
     if(P.character){
-        const mv=keys.ArrowLeft||keys.ArrowRight||keys.KeyA||keys.KeyD;
-        ch.walking=mv; if(mv)ch.frame++;
-        if(keys.ArrowLeft||keys.KeyA){ ch.x-=3; ch.facing=-1; }
-        if(keys.ArrowRight||keys.KeyD){ ch.x+=3; ch.facing=1; }
+        // horizontal input: keyboard (digital) or joystick (analog)
+        let dir=0;
+        if(keys.ArrowLeft||keys.KeyA)  dir=-1;
+        if(keys.ArrowRight||keys.KeyD) dir=1;
+        if(Math.abs(joyX)>0.18) dir=joyX;
+        const moving=dir!==0;
+        if(moving){ ch.x+=dir*3.2; ch.facing=dir<0?-1:1; }
+        ch.walking=moving&&ch.onGround;
+        if(ch.walking) ch.frame++;
         ch.x=Math.max(30,Math.min(canvas.width-30,ch.x));
-        ch.y=groundY()-40;
+        // vertical: jump + gravity
+        const groundBase=groundY()-40;
+        ch.vy+=GRAVITY; ch.y+=ch.vy;
+        if(ch.y>=groundBase){ ch.y=groundBase; ch.vy=0; ch.onGround=true; }
         if(ch.shotCD>0)ch.shotCD--;
         drawCharacter(ch.x,ch.y,ch.facing,ch.walking,ch.frame);
     }
