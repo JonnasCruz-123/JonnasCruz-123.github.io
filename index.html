@@ -214,6 +214,7 @@
         #menu-ov { background: radial-gradient(circle at 50% 30%, #24406b, #0a1020 70%); }
         #gameover-ov { background: radial-gradient(circle at 50% 40%, #4a0a0a, #150404 75%); }
         #victory-ov { background: radial-gradient(circle at 50% 40%, #1d5c2c, #08160c 75%); }
+        #phase-ov { background: radial-gradient(circle at 50% 35%, #2a2450, #0c0a1e 75%); }
         .card {
             max-width: 560px; width: 100%; display: flex; flex-direction: column;
             align-items: center; gap: 14px;
@@ -677,8 +678,8 @@ function spawnBird(off){
     if(level===2){
         const roll=Math.random();
         if(roll<0.08){ isBat=true; isMutant=true; color='#8be05a'; pts=8; sizeMul=1.9; speedMul=0.85; hp=3; }
-        else if(roll<0.70){ isBat=true; color='#2a2233'; pts=3; sizeMul=1; speedMul=1.3; }
-        else { color='#8a94a6'; pts=2; sizeMul=0.9; speedMul=1.1; }
+        else if(roll<0.70){ isBat=true; color='#7a6a95'; pts=3; sizeMul=1; speedMul=1.3; }
+        else { color='#b4bccc'; pts=2; sizeMul=0.9; speedMul=1.1; }
     } else if(level===3){
         const roll=Math.random();
         // Diabrete raro (maior, com vida) + Caveiras Flamejantes comuns
@@ -725,7 +726,7 @@ function drawBird(b){
     if(b.isBat){
         const frame=Math.sin(b.wingAngle)>0 ? BAT_UP : BAT_DN;
         const col = hurt ? '#ffffff' : b.color;
-        drawSprite(frame, { D:col }, b.x, b.y, unit, false, b.isMutant?'#8be05a':null);
+        drawSprite(frame, { D:col }, b.x, b.y, unit, false, b.isMutant?'#8be05a':'#5a4a75');
         const ec = b.isMutant ? '#ffee33' : '#ff3333';
         pxRect(b.x-unit, b.y, unit*0.8, unit*0.8, ec);
         pxRect(b.x+unit*0.3, b.y, unit*0.8, unit*0.8, ec);
@@ -957,28 +958,37 @@ function applyPhase1Theme(){
 }
 function drawCaveBackdrop(){
     const w=canvas.width, h=canvas.height;
-    const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#241a2e'); g.addColorStop(1,'#0d0810');
+    // caverna mais clara e legível (azul-arroxeado, não quase-preto)
+    const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#4a4368'); g.addColorStop(.55,'#332c4c'); g.addColorStop(1,'#242038');
     ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // brilho ambiente suave no centro
+    const rg=ctx.createRadialGradient(w*0.5,h*0.42,20,w*0.5,h*0.42,Math.max(w,h)*0.6);
+    rg.addColorStop(0,'rgba(120,110,170,0.25)'); rg.addColorStop(1,'rgba(120,110,170,0)');
+    ctx.fillStyle=rg; ctx.fillRect(0,0,w,h);
     // ceiling rock band
-    pxRect(0,0,w,42,'#3a2f3f');
-    pxRect(0,38,w,4,'#241d2a');
+    pxRect(0,0,w,42,'#544763');
+    pxRect(0,38,w,4,'#3a3048');
     // stalactites (deterministic)
     for(let x=0;x<w;x+=52){
         const hh=28+((x*7)%44);
-        for(let k=0;k<hh;k+=6){ const ww=Math.max(4, 22-(k/hh)*22); pxRect(x+14-ww/2,42+k,ww,6,'#2a2030'); }
+        for(let k=0;k<hh;k+=6){ const ww=Math.max(4, 22-(k/hh)*22); pxRect(x+14-ww/2,42+k,ww,6,'#443a55'); }
     }
-    // glowing crystals
-    for(let x=90;x<w;x+=230){ blockCircle(x, 66+((x*3)%20), 6, 3, '#66ccff'); }
+    // tochas de parede (luz) + cristais brilhantes
+    for(let x=120;x<w;x+=300){
+        blockCircle(x, 70, 10, 3, 'rgba(255,160,40,0.35)');
+        pxRect(x-2, 58, 4, 14, '#5a3a1a');
+        blockCircle(x, 58, 5, 2, (Math.floor(frameTick/8)+x)%2?'#ffcc44':'#ff9922');
+    }
+    for(let x=90;x<w;x+=200){ ctx.save(); ctx.shadowColor='#8fe0ff'; ctx.shadowBlur=10; blockCircle(x, 74+((x*3)%20), 7, 3, '#8fe0ff'); ctx.restore(); }
 }
 function drawCaveGround(){
     const gy=groundY(), w=canvas.width, h=canvas.height;
-    pxRect(0,gy,w,h-gy,'#2c2430');           // rock floor
-    pxRect(0,gy-12,w,14,'#3a3040');          // ledge
-    pxRect(0,gy-12,w,5,'#4a4052');           // highlight
-    ctx.fillStyle='#241d2a';
+    pxRect(0,gy,w,h-gy,'#413a52');            // rock floor (mais claro)
+    pxRect(0,gy-12,w,14,'#524968');           // ledge
+    pxRect(0,gy-12,w,5,'#6b6088');            // highlight
+    ctx.fillStyle='#332c44';
     for(let yy=gy+12; yy<h; yy+=16){ for(let xx=(yy%32); xx<w; xx+=32){ ctx.fillRect(xx,yy,6,6); } }
-    // a few glowing floor crystals
-    for(let x=140;x<w;x+=260){ blockCircle(x, gy-16, 5, 3, '#5fb0e0'); }
+    for(let x=140;x<w;x+=260){ ctx.save(); ctx.shadowColor='#7fc7ee'; ctx.shadowBlur=8; blockCircle(x, gy-16, 5, 3, '#8fd0f0'); ctx.restore(); }
 }
 function drawHellBackdrop(){
     const w=canvas.width, h=canvas.height;
@@ -1542,10 +1552,20 @@ function phaseClear(next){
     updateUIForState();
 }
 function advancePhase(){ if(pendingLevel===3) enterLevel3(); else enterLevel2(); }
+function spawnVisibleFlock(n){
+    // inimigos já espalhados na tela para a fase não parecer vazia ao entrar
+    birds.length=0;
+    for(let i=0;i<n;i++){
+        const b=spawnBird(true);
+        b.x=rand(20, canvas.width-20);
+        b.baseY=rand(30, groundY()-60); b.y=b.baseY;
+        birds.push(b);
+    }
+}
 function enterLevel2(){
     level=2;
-    document.body.style.background='#0d0810';
-    birds.length=0; for(let i=0;i<34;i++) birds.push(spawnBird(true));
+    document.body.style.background='#1c1730';
+    spawnVisibleFlock(34);
     squirrels.length=0; treeSquirrels.length=0;
     fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0; souls.length=0;
     boss.active=false; boss.entering=false; boss.hurtFlash=0; bossBar.classList.remove('on');
@@ -1558,8 +1578,8 @@ function enterLevel2(){
 }
 function enterLevel3(){
     level=3;
-    document.body.style.background='#1a0402';
-    birds.length=0; for(let i=0;i<40;i++) birds.push(spawnBird(true));
+    document.body.style.background='#2a0604';
+    spawnVisibleFlock(40);
     squirrels.length=0; treeSquirrels.length=0;
     fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0; souls.length=0;
     boss.active=false; boss.entering=false; boss.hurtFlash=0; bossBar.classList.remove('on');
