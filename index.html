@@ -459,7 +459,7 @@ const P = {
     rocket:false, rocketBig:false, rocketLaser:false, bazooka:false, character:false, charLaser:false,
     // habilidades nível 1
     dblJump:false, rapidFire:false, spreadShot:false, piercing:false, moveFast:false,
-    maxHp:false, regen:false, shield:false, laserTurbo:false, fury:false,
+    maxHp:false, regen:false, shield:false, laserTurbo:false, fury:false, soulMagnet:false,
     // habilidades nível 2 (caverna)
     hpUp2:false, regen2:false, shield2:false, dblJump2:false, moveFast2:false,
     rapidFire2:false, laserMega:false, fury2:false, explosiveShot:false, vampire:false,
@@ -477,6 +477,8 @@ const treeSquirrels = [];
 const lasers        = [];
 const pellets       = [];
 const waves         = [];   // tsunamis do Henrique
+const souls         = [];   // almas (💀) que caem dos inimigos
+const MAGNET_RANGE  = 240;  // alcance do Ímã de Almas
 const fireballs     = [];
 const meteors       = [];
 let   grassData     = [];
@@ -584,22 +586,27 @@ function pickBirdType(){
 function spawnBird(off){
     const maxY = P.character ? groundY()-40 : canvas.height-20;
     const by   = rand(20, Math.max(40,maxY));
-    // Na caverna (nível 2) a maioria são morcegos; poucos pássaros pálidos.
-    let isBat=false, color, pts, glow=false, sizeMul=1, speedMul=1;
+    // Na caverna (nível 2): morcegos, pássaros pálidos e o raro Morcego Mutante.
+    let isBat=false, isMutant=false, color, pts, glow=false, sizeMul=1, speedMul=1, hp=1;
     if(level===2){
-        if(Math.random()<0.65){ isBat=true; color='#2a2233'; pts=3; sizeMul=1; speedMul=1.3; }
+        const roll=Math.random();
+        if(roll<0.08){ isBat=true; isMutant=true; color='#8be05a'; pts=8; sizeMul=1.9; speedMul=0.85; hp=3; }
+        else if(roll<0.70){ isBat=true; color='#2a2233'; pts=3; sizeMul=1; speedMul=1.3; }
         else { color='#8a94a6'; pts=2; sizeMul=0.9; speedMul=1.1; }
     } else {
         const t=pickBirdType(); color=t.color; pts=t.pts; glow=t.glow; sizeMul=t.sizeMul; speedMul=t.speedMul;
     }
+    // zig-zag (onda senoidal) bem mais forte para o mutante
+    const ampMul = isMutant ? 2.8 : (isBat ? 1.6 : 1);
+    const frqMul = isMutant ? 2.4 : (isBat ? 1.8 : 1);
     return {
         x: off ? rand(canvas.width, canvas.width*3) : canvas.width+rand(0,canvas.width),
         y:by, baseY:by,
         speed: rand(1.5,4.5)*speedMul, size: rand(7,13)*sizeMul,
-        wingAngle: rand(0,Math.PI*2), wingSpeed: rand(0.08,0.18),
-        amplitude: rand(0.3,0.7)*(isBat?1.6:1), vertFreq: rand(0.01,0.03)*(isBat?1.8:1),
+        wingAngle: rand(0,Math.PI*2), wingSpeed: rand(0.08,0.18)*(isMutant?1.4:1),
+        amplitude: rand(0.3,0.7)*ampMul, vertFreq: rand(0.01,0.03)*frqMul,
         tick: rand(0,1000), dead:false,
-        color, pts, glow, isBat
+        color, pts, glow, isBat, isMutant, hp, flash:0
     };
 }
 for(let i=0;i<NUM_BIRDS;i++) birds.push(spawnBird(true));
@@ -608,24 +615,48 @@ const BAT_UP = ["D.....D","DD.D.DD","DDDDDDD",".D.D.D.","..D.D.."];
 const BAT_DN = ["..D.D..",".DDDDD.","DDDDDDD","DD.D.DD","D.....D"];
 function drawBird(b){
     const unit=Math.max(2,Math.round(b.size*0.5));
+    const hurt = b.flash>0;
     if(b.isBat){
         const frame=Math.sin(b.wingAngle)>0 ? BAT_UP : BAT_DN;
-        drawSprite(frame, { D:b.color }, b.x, b.y, unit, false, null);
-        // olhos vermelhos
-        pxRect(b.x-unit, b.y, unit*0.8, unit*0.8, '#ff3333');
-        pxRect(b.x+unit*0.3, b.y, unit*0.8, unit*0.8, '#ff3333');
+        const col = hurt ? '#ffffff' : b.color;
+        drawSprite(frame, { D:col }, b.x, b.y, unit, false, b.isMutant?'#8be05a':null);
+        // olhos (amarelos no mutante, vermelhos no comum)
+        const ec = b.isMutant ? '#ffee33' : '#ff3333';
+        pxRect(b.x-unit, b.y, unit*0.8, unit*0.8, ec);
+        pxRect(b.x+unit*0.3, b.y, unit*0.8, unit*0.8, ec);
         return;
     }
     const frame=Math.sin(b.wingAngle)>0 ? BIRD_UP : BIRD_DN;
-    drawSprite(frame, { B:b.color }, b.x, b.y, unit, false, b.glow?b.color:null);
+    drawSprite(frame, { B: hurt?'#ffffff':b.color }, b.x, b.y, unit, false, b.glow?b.color:null);
 }
 
 function vampHeal(){
     if(P.vampire && ch.hp<ch.maxHp && Math.random()<0.12){ ch.hp++; refreshHearts(); floater(ch.x,ch.y-34,'+1❤️','#ff6699'); }
 }
+// alma (💀) que cai do inimigo abatido
+function spawnSoul(x,y){
+    if(!P.character) return;
+    souls.push({ x, y, vx:rand(-1.6,1.6), vy:rand(-3.2,-1), life:1 });
+}
+// explosão extra de faíscas/penas colorida (juice ao abater voadores)
+function featherPop(x,y,color){
+    for(let i=0;i<10;i++){
+        const a=rand(0,Math.PI*2), sp=rand(2,6);
+        particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,decay:rand(.03,.06),size:rand(2,5),color:Math.random()<0.5?color:'#ffffff'});
+    }
+}
+// aplica dano a um voador; só morre quando a vida acaba (Morcego Mutante tem mais)
+function hitBird(b,dmg){
+    if(b.dead)return;
+    b.hp -= dmg;
+    if(b.hp<=0){ killBird(b); }
+    else { b.flash=4; hitSpark(b.x,b.y); }
+}
 function killBird(b){
     if(b.dead)return;
     explode(b.x,b.y,b.size);
+    featherPop(b.x,b.y,b.color);
+    spawnSoul(b.x,b.y);
     b.dead=true;
     addKills(b.pts);
     if(b.pts>=5) floater(b.x,b.y-8,'+'+b.pts+'💀', b.color==='#ffcf33'?'#ffd700':b.color);
@@ -660,7 +691,7 @@ function killSquirrel(sq){
     if(sq.dead)return;
     explode(sq.x,sq.y,sq.size*1.5);
     sq.dead=true; addKills(5);
-    floater(sq.x,sq.y-10,'+5💀','#ffd700');
+    floater(sq.x,sq.y-10,'+5💀','#ffd700'); spawnSoul(sq.x,sq.y);
     const i=squirrels.indexOf(sq);
     setTimeout(()=>{ if(i!==-1) squirrels[i]=spawnSquirrel(); },3000);
 }
@@ -689,7 +720,7 @@ function killTreeSquirrel(t){
     if(t.dead)return;
     explode(t.x,t.y,t.size*1.5);
     t.dead=true; addKills(5);
-    floater(t.x,t.y-10,'+5💀','#ffd700');
+    floater(t.x,t.y-10,'+5💀','#ffd700'); spawnSoul(t.x,t.y);
     setTimeout(()=>{ const s=treeSpotList()[t.spot]; t.dead=false; t.tick=0; if(s){ t.x=s.x; t.y=s.y; } },3000);
 }
 
@@ -895,7 +926,7 @@ function fireCharLaser(){
         if(rx*dx+ry*dy < 0) return false;
         return Math.abs(rx*perpx+ry*perpy) < beamW;
     };
-    for(let b of birds){ if(!b.dead && onBeam(b.x,b.y)) killBird(b); }
+    for(let b of birds){ if(!b.dead && onBeam(b.x,b.y)) hitBird(b,1); }
     for(let sq of squirrels){ if(!sq.dead && onBeam(sq.x,sq.y)) killSquirrel(sq); }
     for(let t of treeSquirrels){ if(!t.dead && onBeam(t.x,t.y)) killTreeSquirrel(t); }
     if(boss.active && !boss.entering && onBeam(boss.x,boss.y)){
@@ -983,7 +1014,7 @@ function updateUIForState(){
 
 // ── bosses: Heitor (bola/fogo) e Henrique (água/vento) ─────────────────────────────
 const boss = { active:false, entering:false, type:'heitor', x:0, y:0, baseY:0, size:70,
-               hp:0, maxHp:340, hitR:105, tick:0, wingAngle:0, atkCD:70, atk2CD:150 };
+               hp:0, maxHp:340, hitR:105, tick:0, wingAngle:0, atkCD:70, atk2CD:150, hurtFlash:0 };
 
 function summonBoss(){
     if(gameState!=='playing' || !P.character || boss.active) return;
@@ -991,7 +1022,7 @@ function summonBoss(){
     if(type==='heitor' && heitorDefeated) return;
     if(type==='henrique' && (henriqueDefeated || !allLevel2Bought())) return;
     boss.active=true; boss.entering=true; boss.type=type;
-    boss.size = 70; boss.hitR = boss.size*1.5; boss.tick=0; boss.wingAngle=0;
+    boss.size = 70; boss.hitR = boss.size*1.5; boss.tick=0; boss.wingAngle=0; boss.hurtFlash=0;
     boss.x = canvas.width*.5; boss.y = -140; boss.baseY = canvas.height*.26;
     if(type==='heitor'){
         boss.maxHp=340; boss.hp=340; boss.atkCD=90; boss.atk2CD=150;
@@ -1008,6 +1039,7 @@ function updateBossBar(){ bossFill.style.width = Math.max(0,boss.hp/boss.maxHp*1
 function damageBoss(n){
     if(!boss.active||boss.entering) return;
     boss.hp -= n; if(boss.hp<0)boss.hp=0;
+    boss.hurtFlash = 6;            // pisca vermelho ao sofrer dano
     updateBossBar();
     if(boss.hp<=0) defeatBoss();
 }
@@ -1020,7 +1052,27 @@ function defeatBoss(){
     if(t==='heitor'){ heitorDefeated=true; addKills(100); setTimeout(phaseClear, 950); }
     else { henriqueDefeated=true; addKills(200); setTimeout(()=>endGame(true), 950); }
 }
-function drawBoss(){ if(boss.type==='heitor') drawDemon(boss); else drawWaterDemon(boss); }
+function drawBoss(){
+    if(boss.type==='heitor') drawDemon(boss); else drawWaterDemon(boss);
+    // feedback de dano: overlay vermelho piscando sobre o chefão
+    if(boss.hurtFlash>0){
+        const s=boss.size, u=Math.max(3,Math.round(s/12));
+        ctx.save(); ctx.globalAlpha=0.55*(boss.hurtFlash/6);
+        blockCircle(boss.x, boss.y, s*0.8, u, '#ff2222');
+        blockCircle(boss.x, boss.y-s*0.82, s*0.5, u, '#ff2222');
+        ctx.restore();
+    }
+}
+// desenho da alma (💀) caída
+function drawSoul(x,y){
+    x=Math.round(x); y=Math.round(y);
+    pxRect(x-4,y-4,8,7,'#eef2ff');   // crânio
+    pxRect(x-4,y+3,8,2,'#eef2ff');
+    pxRect(x-3,y+3,2,2,'#eef2ff');
+    pxRect(x+1,y+3,2,2,'#eef2ff');
+    pxRect(x-3,y-2,2,2,'#33344a');   // olhos
+    pxRect(x+1,y-2,2,2,'#33344a');
+}
 
 // Henrique — demônio de água/vento (azul)
 function drawWaterDemon(b){
@@ -1230,8 +1282,8 @@ function startGame(){
     updateUIForState();
 }
 function resetPlaying(){
-    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; lasers.length=0; pellets.length=0;
-    boss.active=false; boss.entering=false; bossBar.classList.remove('on');
+    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; lasers.length=0; pellets.length=0; souls.length=0;
+    boss.active=false; boss.entering=false; boss.hurtFlash=0; bossBar.classList.remove('on');
     charFiring=false; nukeCD=0; nukeFlash=0;
     if(P.character){ ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; ch.iframes=0; ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true; ch.jumps=0; }
     shieldUp=false; shieldCD=shieldRecharge();
@@ -1256,8 +1308,8 @@ function enterLevel2(){
     // sem árvore/esquilos na caverna
     squirrels.length=0; treeSquirrels.length=0;
     // limpa ameaças e reposiciona o jogador
-    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0;
-    boss.active=false; boss.entering=false; bossBar.classList.remove('on');
+    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0; souls.length=0;
+    boss.active=false; boss.entering=false; boss.hurtFlash=0; bossBar.classList.remove('on');
     ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; ch.iframes=0; ch.jumps=0;
     ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true;
     charHint.innerHTML='CAVERNA — atire nos morcegos<br>PULE os tsunamis 🌊 do Henrique';
@@ -1308,6 +1360,7 @@ const ITEMS=[
     { id:'shield',    name:'Escudo de Energia',icon:'🛡️',desc:'Um escudo bloqueia 1 dano e recarrega sozinho.', price:60, req:'character' },
     { id:'laserTurbo',name:'Laser Turbo',   icon:'🔴',    desc:'Laser duplo mais grosso e com muito mais dano.', price:70, req:'charLaser' },
     { id:'fury',      name:'Fúria',         icon:'😤',    desc:'Dobra o dano de TODAS as armas contra o chefão.', price:65, req:'character' },
+    { id:'soulMagnet',name:'Ímã de Almas',  icon:'🧲💀',  desc:'As almas (💀) dos inimigos abatidos voam até você e dão caveiras bônus.', price:55, req:'character' },
     // ── FASE 2 (caverna): 10 novos poderes + Nuke Bomb Master ──
     { id:'hpUp2',       name:'Armadura de Placas', icon:'🛡️🦾', desc:'+3 corações de vida máxima (total 11).', price:90,  req:'character', minLevel:2 },
     { id:'regen2',      name:'Regeneração Veloz',  icon:'💗',    desc:'Regenera vida quase 2x mais rápido.',    price:85,  req:'regen',     minLevel:2 },
@@ -1409,7 +1462,7 @@ function handleTap(mx,my){
     for(let b of birds){
         if(b.dead)continue;
         const dx=mx-b.x, dy=my-b.y;
-        if(Math.sqrt(dx*dx+dy*dy)<b.size*2.5){ killBird(b); break; }
+        if(Math.sqrt(dx*dx+dy*dy)<b.size*2.5){ hitBird(b,1); break; }
     }
     if(P.character){
         for(let sq of squirrels){
@@ -1525,6 +1578,7 @@ function animate(now){
     for(let b of birds){
         if(b.dead)continue;
         b.tick++; b.wingAngle+=b.wingSpeed; b.x-=b.speed;
+        if(b.flash>0) b.flash--;
         b.y=Math.min(b.baseY+Math.sin(b.tick*b.vertFreq)*20*b.amplitude, maxBY);
         if(b.x<-50){
             const nb=spawnBird(false); Object.assign(b,nb);
@@ -1607,6 +1661,7 @@ function animate(now){
     // ── boss update ──
     if(boss.active){
         boss.tick++; boss.wingAngle+=0.12;
+        if(boss.hurtFlash>0) boss.hurtFlash--;
         if(boss.entering){
             boss.y += (boss.baseY-boss.y)*0.05;
             if(Math.abs(boss.y-boss.baseY)<3){ boss.y=boss.baseY; boss.entering=false; }
@@ -1728,7 +1783,7 @@ function animate(now){
             const dx=p.x-b.x,dy=p.y-b.y;
             if(Math.sqrt(dx*dx+dy*dy)<b.size*2){
                 if(P.explosiveShot){ bigExplode(b.x,b.y); for(let b2 of birds){ if(!b2.dead){ const d2=Math.hypot(p.x-b2.x,p.y-b2.y); if(d2<50) killBird(b2); } } }
-                else killBird(b);
+                else hitBird(b,1);
                 if(!P.piercing){p.life=0;} break;
             }
         }
@@ -1749,6 +1804,30 @@ function animate(now){
         if(p.life<=0){ pellets.splice(i,1); continue; }
         ctx.save(); ctx.globalAlpha=p.life;
         pxRect(p.x-2,p.y-2,4,4,'#ffe066');
+        ctx.restore();
+    }
+
+    // souls (💀) — voam até o jogador com o Ímã de Almas
+    for(let i=souls.length-1;i>=0;i--){
+        const s=souls[i];
+        if(P.character){
+            const dx=(ch.x)-s.x, dy=(ch.y-10)-s.y, d=Math.hypot(dx,dy)||1;
+            if(P.soulMagnet && d<MAGNET_RANGE){
+                s.vx += dx/d*1.5; s.vy += dy/d*1.5; s.vx*=0.9; s.vy*=0.9;
+            } else {
+                s.vy += 0.16;
+            }
+            s.x+=s.vx; s.y+=s.vy;
+            const gy=groundY(); if(s.y>gy-6){ s.y=gy-6; s.vy*=-0.35; s.vx*=0.7; }
+            if(d<26){ addKills(1); floater(s.x,s.y-6,'+1💀','#cfe4ff'); souls.splice(i,1); continue; }
+        } else {
+            s.vy += 0.16; s.x+=s.vx; s.y+=s.vy;
+        }
+        s.life -= 0.006;
+        if(s.life<=0){ souls.splice(i,1); continue; }
+        ctx.save(); ctx.globalAlpha=Math.min(1,s.life*1.6);
+        if(P.soulMagnet){ ctx.shadowColor='#9fd8ff'; ctx.shadowBlur=8; }
+        drawSoul(s.x,s.y);
         ctx.restore();
     }
 
