@@ -2,8 +2,16 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Caçada — Heitor o Bom de Bola</title>
+    <!-- PWA: instalável como app -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0b1026">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" href="icon-192.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1184,7 +1192,7 @@ function updateUIForState(){
 
 // ── bosses: Heitor (bola/fogo) e Henrique (água/vento) ─────────────────────────────
 const boss = { active:false, entering:false, type:'heitor', x:0, y:0, baseY:0, size:70,
-               hp:0, maxHp:340, hitR:105, tick:0, wingAngle:0, atkCD:70, atk2CD:150, hurtFlash:0 };
+               hp:0, maxHp:340, hitR:105, tick:0, wingAngle:0, atkCD:70, atk2CD:150, atk3CD:200, hurtFlash:0 };
 
 function summonBoss(){
     if(gameState!=='playing' || !P.character || boss.active) return;
@@ -1196,15 +1204,15 @@ function summonBoss(){
     boss.size = 70; boss.tick=0; boss.wingAngle=0; boss.hurtFlash=0;
     boss.x = canvas.width*.5; boss.y = -140; boss.baseY = canvas.height*.26;
     if(type==='heitor'){
-        boss.maxHp=520; boss.hp=520; boss.atkCD=70; boss.atk2CD=110;
+        boss.maxHp=520; boss.hp=520; boss.atkCD=70; boss.atk2CD=110; boss.atk3CD=260;
         bossNameEl.innerHTML='🔥 HEITOR, <span>O BOM DE BOLA</span> 🔥';
         floater(canvas.width/2, canvas.height*.4, '⚠️ HEITOR CHEGOU!', '#ff5533');
     } else if(type==='henrique'){
-        boss.maxHp=680; boss.hp=680; boss.atkCD=58; boss.atk2CD=180;
+        boss.maxHp=680; boss.hp=680; boss.atkCD=58; boss.atk2CD=180; boss.atk3CD=300;
         bossNameEl.innerHTML='🌊 HENRIQUE, <span>O BOM DA ÁGUA</span> 🌊';
         floater(canvas.width/2, canvas.height*.4, '⚠️ HENRIQUE CHEGOU!', '#4cc3ff');
     } else {
-        boss.size = 86; boss.maxHp=1000; boss.hp=1000; boss.atkCD=54; boss.atk2CD=120;
+        boss.size = 86; boss.maxHp=1000; boss.hp=1000; boss.atkCD=54; boss.atk2CD=120; boss.atk3CD=340;
         bossNameEl.innerHTML='👹 TROPEIRA, <span>A RAINHA DO INFERNO</span> 👹';
         floater(canvas.width/2, canvas.height*.4, '☠️ A TROPEIRA DESPERTOU!', '#ff7733');
     }
@@ -1244,44 +1252,48 @@ function drawBoss(){
     }
 }
 // Tropeira — a rainha demônio do Inferno (roxo/magenta com coroa de chifres)
+// Tropeira — RAINHA alta e esguia com coroa de espinhos e capa (silhueta única)
 function drawTropeira(b){
     const s=b.size, x=Math.round(b.x), y=Math.round(b.y), u=Math.max(3,Math.round(s/12));
-    const flap=Math.sin(b.wingAngle)*s*0.22;
-    // huge wings
+    const flap=Math.sin(b.wingAngle)*s*0.18;
+    // capa/asas grandes espalhadas
     for(const dir of [-1,1]){
-        for(let i=0;i<7;i++){
-            const wx = x + dir*(s*0.55 + i*s*0.17);
-            const wy = y - s*0.4 - flap*(i/7) + i*i*u*0.45;
-            const wh = Math.max(u, s*0.62 - i*u*1.05);
-            pxRect(wx - (dir<0?u*2.6:0), wy, u*2.6, wh, '#3a0a2a');
+        for(let i=0;i<8;i++){
+            const wx=x+dir*(s*0.45+i*s*0.2);
+            const wy=y-s*0.7 - flap*(i/8) + i*i*u*0.4;
+            const wh=Math.max(u, s*0.95 - i*u*1.0);
+            pxRect(wx-(dir<0?u*2.6:0), wy, u*2.6, wh, i%2?'#2a0620':'#4a0d33');
         }
     }
-    pxRect(x-s*0.72, y+s*0.1, u*2, s*0.55, '#7a1050');
-    pxRect(x+s*0.72-u*2, y+s*0.1, u*2, s*0.55, '#7a1050');
-    // body
-    blockCircle(x, y, s*0.8, u, '#4a0d33');
-    blockCircle(x, y, s*0.62, u, '#a01e6e');
-    blockCircle(x, y+s*0.22, s*0.42, u, '#ff5aa0');
-    // head
-    blockCircle(x, y-s*0.84, s*0.52, u, '#a01e6e');
-    // crown of horns (5 spikes)
-    for(let k=-2;k<=2;k++){
-        pxRect(x + k*s*0.24 - u, y-s*1.5 - Math.abs(k)*u, u*2, s*0.5 - Math.abs(k)*u*1.5, '#1a1a1a');
+    // corpo esguio e alto (torso + saia)
+    pxRect(x-s*0.32, y-s*0.5, s*0.64, s*1.25, '#6a1048');
+    blockCircle(x, y-s*0.45, s*0.34, u, '#a01e6e');
+    blockCircle(x, y+s*0.6, s*0.44, u, '#4a0d33');
+    // braços longos com garras erguidas
+    pxRect(x-s*0.56, y-s*0.5, u*2, s*0.85, '#a01e6e');
+    pxRect(x+s*0.56-u*2, y-s*0.5, u*2, s*0.85, '#a01e6e');
+    pxRect(x-s*0.62, y+s*0.28, u*2.4, u*2, '#ff5aa0');
+    pxRect(x+s*0.62-u*2.4, y+s*0.28, u*2.4, u*2, '#ff5aa0');
+    // cabeça
+    blockCircle(x, y-s*0.95, s*0.4, u, '#c23c86');
+    // coroa alta de espinhos (7 pontas com gemas)
+    for(let k=-3;k<=3;k++){
+        const hh=s*0.55 - Math.abs(k)*s*0.09;
+        pxRect(x+k*s*0.2-u, y-s*1.32-hh, u*2, hh, '#141014');
+        pxRect(x+k*s*0.2-u*0.5, y-s*1.32-hh, u, u, '#ff3366');
     }
-    // eyes (fiery)
+    // olhos flamejantes
     ctx.save(); ctx.shadowColor='#ff5533'; ctx.shadowBlur=16;
-    pxRect(x-s*0.32, y-s*0.95, u*2.4, u*2.4, '#ff3300');
-    pxRect(x+s*0.32-u*2.4, y-s*0.95, u*2.4, u*2.4, '#ff3300');
+    pxRect(x-s*0.24, y-s*1.02, u*2, u*2, '#ffdd33');
+    pxRect(x+s*0.24-u*2, y-s*1.02, u*2, u*2, '#ffdd33');
     ctx.restore();
-    pxRect(x-s*0.32+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
-    pxRect(x+s*0.32-u*2.4+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
-    // grin + fangs
-    pxRect(x-s*0.3, y-s*0.55, s*0.6, u, '#2a0018');
-    pxRect(x-s*0.22, y-s*0.55, u, u*1.7, '#ffffff');
-    pxRect(x+s*0.22-u, y-s*0.55, u, u*1.7, '#ffffff');
-    // fire ball
-    blockCircle(x, y+s*0.8, s*0.3, u, '#ff6600');
-    blockCircle(x, y+s*0.8, s*0.17, u, '#ffdd55');
+    pxRect(x-s*0.24+u*0.5, y-s*1.02+u*0.5, u, u, '#000');
+    pxRect(x+s*0.24-u*2+u*0.5, y-s*1.02+u*0.5, u, u, '#000');
+    pxRect(x-s*0.18, y-s*0.72, s*0.36, u, '#2a0018'); // boca
+    // orbe de fogo flutuante que ela empunha
+    const ofx=x+Math.sin(b.wingAngle)*s*0.22;
+    blockCircle(ofx, y+s*0.95, s*0.22, u, '#ff6600');
+    blockCircle(ofx, y+s*0.95, s*0.12, u, '#ffee88');
 }
 // desenho da alma (💀) caída
 function drawSoul(x,y){
@@ -1295,87 +1307,38 @@ function drawSoul(x,y){
 }
 
 // Henrique — demônio de água/vento (azul)
+// Henrique — KRAKEN de água (corpo redondo, tentáculos e crista de onda)
 function drawWaterDemon(b){
     const s=b.size, x=Math.round(b.x), y=Math.round(b.y), u=Math.max(3,Math.round(s/12));
-    const flap=Math.sin(b.wingAngle)*s*0.22;
-    // swirly wind wings
-    for(const dir of [-1,1]){
-        for(let i=0;i<6;i++){
-            const wx = x + dir*(s*0.55 + i*s*0.16);
-            const wy = y - s*0.35 - flap*(i/6) + i*i*u*0.5;
-            const wh = Math.max(u, s*0.55 - i*u*1.1);
-            pxRect(wx - (dir<0?u*2.4:0), wy, u*2.4, wh, '#0d3f66');
+    const wob=Math.sin(b.wingAngle);
+    // tentáculos ondulando embaixo
+    for(let i=0;i<6;i++){
+        const tx=x+(i-2.5)*s*0.28;
+        const sway=Math.sin(b.wingAngle*1.6+i)*s*0.14;
+        for(let k=0;k<5;k++){
+            pxRect(tx+sway*(k/5)-u, y+s*0.5+k*s*0.17, u*2.2, s*0.17, k%2?'#0d5a8a':'#1e7fb8');
         }
     }
-    pxRect(x-s*0.7, y+s*0.1, u*2, s*0.5, '#1867a0');
-    pxRect(x+s*0.7-u*2, y+s*0.1, u*2, s*0.5, '#1867a0');
-    // body
-    blockCircle(x, y, s*0.78, u, '#0d3f66');
-    blockCircle(x, y, s*0.6, u, '#1e7fb8');
-    blockCircle(x, y+s*0.22, s*0.4, u, '#6cc3e0'); // belly
-    // head
-    blockCircle(x, y-s*0.82, s*0.5, u, '#1e7fb8');
-    // horns (like water fins)
-    pxRect(x-s*0.46, y-s*1.5, u*2, s*0.55, '#0a2b45');
-    pxRect(x-s*0.5,  y-s*1.5, u*2, u*2,    '#0a2b45');
-    pxRect(x+s*0.46-u*2, y-s*1.5, u*2, s*0.55, '#0a2b45');
-    pxRect(x+s*0.5-u*2,  y-s*1.5, u*2, u*2,    '#0a2b45');
-    // eyes (cyan glow)
+    // corpo/cabeça redondo grande
+    blockCircle(x, y, s*0.88, u, '#0d3f66');
+    blockCircle(x, y, s*0.72, u, '#1e7fb8');
+    blockCircle(x, y-s*0.08, s*0.5, u, '#4aa3d8'); // rosto
+    // crista de onda no topo (coroa de água)
+    for(let k=-2;k<=2;k++){
+        const hh=s*0.42 - Math.abs(k)*s*0.09 + wob*u;
+        pxRect(x+k*s*0.32-u, y-s*0.92-hh, u*2.2, hh, '#7fd0ff');
+    }
+    // olhos grandes bravos
     ctx.save(); ctx.shadowColor='#aef'; ctx.shadowBlur=14;
-    pxRect(x-s*0.32, y-s*0.95, u*2.4, u*2.4, '#cfefff');
-    pxRect(x+s*0.32-u*2.4, y-s*0.95, u*2.4, u*2.4, '#cfefff');
+    blockCircle(x-s*0.3, y-s*0.12, s*0.2, u, '#eaffff');
+    blockCircle(x+s*0.3, y-s*0.12, s*0.2, u, '#eaffff');
     ctx.restore();
-    pxRect(x-s*0.32+u*0.6, y-s*0.95+u*0.6, u, u, '#003');
-    pxRect(x+s*0.32-u*2.4+u*0.6, y-s*0.95+u*0.6, u, u, '#003');
-    // mouth
-    pxRect(x-s*0.3, y-s*0.55, s*0.6, u, '#062033');
-    // water droplet "ball"
-    blockCircle(x, y+s*0.78, s*0.3, u, '#2f8fd0');
-    blockCircle(x, y+s*0.78, s*0.18, u, '#9fe0ff');
-    pxRect(x-u, y+s*0.55, u*2, u*2, '#cff');
-}
-
-function drawDemon(b){
-    const s=b.size, x=Math.round(b.x), y=Math.round(b.y), u=Math.max(3,Math.round(s/12));
-    const flap=Math.sin(b.wingAngle)*s*0.22;
-    // wings (blocky, both sides)
-    for(const dir of [-1,1]){
-        for(let i=0;i<6;i++){
-            const wx = x + dir*(s*0.55 + i*s*0.16);
-            const wy = y - s*0.35 - flap*(i/6) + i*i*u*0.5;
-            const wh = Math.max(u, s*0.55 - i*u*1.1);
-            pxRect(wx - (dir<0?u*2.4:0), wy, u*2.4, wh, '#4a0a0a');
-        }
-    }
-    // arms holding the ball
-    pxRect(x-s*0.7, y+s*0.1, u*2, s*0.5, '#a01818');
-    pxRect(x+s*0.7-u*2, y+s*0.1, u*2, s*0.5, '#a01818');
-    // body
-    blockCircle(x, y, s*0.78, u, '#7f0000');
-    blockCircle(x, y, s*0.6, u, '#c62828');
-    blockCircle(x, y+s*0.22, s*0.4, u, '#e0603a'); // belly
-    // head
-    blockCircle(x, y-s*0.82, s*0.5, u, '#c62828');
-    // horns
-    pxRect(x-s*0.46, y-s*1.5, u*2, s*0.55, '#2b2b2b');
-    pxRect(x-s*0.5,  y-s*1.5, u*2, u*2,    '#2b2b2b');
-    pxRect(x+s*0.46-u*2, y-s*1.5, u*2, s*0.55, '#2b2b2b');
-    pxRect(x+s*0.5-u*2,  y-s*1.5, u*2, u*2,    '#2b2b2b');
-    // eyes (glow)
-    ctx.save(); ctx.shadowColor='#ffcc00'; ctx.shadowBlur=14;
-    pxRect(x-s*0.32, y-s*0.95, u*2.4, u*2.4, '#ffe000');
-    pxRect(x+s*0.32-u*2.4, y-s*0.95, u*2.4, u*2.4, '#ffe000');
-    ctx.restore();
-    pxRect(x-s*0.32+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
-    pxRect(x+s*0.32-u*2.4+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
-    // mouth + fangs
-    pxRect(x-s*0.3, y-s*0.55, s*0.6, u, '#3a0000');
-    pxRect(x-s*0.22, y-s*0.55, u, u*1.6, '#ffffff');
-    pxRect(x+s*0.22-u, y-s*0.55, u, u*1.6, '#ffffff');
-    // the fire "ball" (bom de bola)
-    blockCircle(x, y+s*0.78, s*0.32, u, '#ff6600');
-    blockCircle(x, y+s*0.78, s*0.2, u, '#ffcc33');
-    blockCircle(x, y+s*0.78, s*0.09, u, '#ffffee');
+    pxRect(x-s*0.3-u, y-s*0.12-u, u*2, u*2, '#02233a');
+    pxRect(x+s*0.3-u, y-s*0.12-u, u*2, u*2, '#02233a');
+    pxRect(x-s*0.52, y-s*0.4, s*0.34, u, '#0a2b45'); // sobrancelha
+    pxRect(x+s*0.18, y-s*0.4, s*0.34, u, '#0a2b45');
+    // boca em O
+    blockCircle(x, y+s*0.3, s*0.15, u, '#02233a');
 }
 
 function drawDemon(b){
@@ -1461,6 +1424,13 @@ function spawnBallVolley(fire){
 const BALL_COLORS=['#ffffff','#ff5533','#33cc66','#3399ff','#ffcc33'];
 function drawMeteor(m){
     const x=Math.round(m.x), y=Math.round(m.y), u=3, r=u*4;
+    if(m.rain){
+        // gota de água (chuva do Henrique)
+        pxRect(x-2, y-8, 4, 8, '#4cc3ff');
+        pxRect(x-3, y, 6, 8, '#1e7fb8');
+        pxRect(x-1, y-2, 2, 6, '#dffaff');
+        return;
+    }
     if(m.fire){
         for(let i=1;i<=5;i++){ pxRect(x-u, y-i*u*2, u*2, u*2, i%2?'#ff8800':'#ffcc33'); } // rastro
         blockCircle(x,y,r,u,'#ff5522');
@@ -1476,13 +1446,32 @@ function drawMeteor(m){
     pxRect(x,y+r-u*2,u,u,'#222');
     pxRect(x-u*2,y-u*2,u,u,'#ffffff');
 }
-// tsunamis (Henrique) — vêm de um lado; o jogador precisa PULAR
+// tsunamis (Henrique) e bola gigante rolante (Heitor) — o jogador precisa PULAR
 function spawnTsunami(){
     const dir = Math.random()<0.5?1:-1;
-    waves.push({ x: dir>0? -50 : canvas.width+50, dir, speed:6.5, h:78, warn:70 });
+    waves.push({ x: dir>0? -50 : canvas.width+50, dir, speed:6.5, h:78, warn:70, kind:'water' });
+}
+// GOLPE 3 do Heitor: chuta uma BOLA gigante que rola pelo chão (pule!)
+function kickGiantBall(){
+    const dir = ch.x < boss.x ? -1 : 1;
+    waves.push({ x: dir>0? -60 : canvas.width+60, dir, speed:8, h:70, warn:60, kind:'ball', spin:0 });
+    floater(canvas.width/2, canvas.height*.5, '⚽ CHUTAÇO! PULE!', '#ffdd55');
 }
 function drawTsunami(wv){
-    const gy=groundY(), x=Math.round(wv.x), top=gy-wv.h;
+    const gy=groundY(), x=Math.round(wv.x);
+    if(wv.kind==='ball'){
+        const r=wv.h*0.5, cy=gy-r;
+        wv.spin=(wv.spin||0)+wv.speed*0.06;
+        blockCircle(x, cy, r, 4, '#ffffff');
+        // gomos girando
+        const a=wv.spin;
+        pxRect(x-4, cy-4, 8, 8, '#222');
+        pxRect(x+Math.cos(a)*r*0.6-3, cy+Math.sin(a)*r*0.6-3, 6, 6, '#222');
+        pxRect(x+Math.cos(a+2)*r*0.6-3, cy+Math.sin(a+2)*r*0.6-3, 6, 6, '#222');
+        pxRect(x+Math.cos(a+4)*r*0.6-3, cy+Math.sin(a+4)*r*0.6-3, 6, 6, '#222');
+        return;
+    }
+    const top=gy-wv.h;
     for(let yy=top; yy<gy; yy+=6){
         const wob=Math.sin((yy+frameTick*3)*0.08)*7*wv.dir;
         pxRect(x-24+wob, yy, 48, 6, '#2f8fd0');
@@ -1490,6 +1479,26 @@ function drawTsunami(wv){
     }
     pxRect(x-28, top-6, 56, 8, '#bfe8ff');       // foam
     blockCircle(x-wv.dir*10, top, 12, 4, '#7fc7ee');
+}
+// GOLPE 3 do Henrique: CHUVA de água por toda a largura
+function waterRain(){
+    for(let i=0;i<9;i++){
+        meteors.push({ x:rand(20,canvas.width-20), y:-40-rand(0,120), vy:rand(3,5), warn:0, falling:true, rain:true });
+    }
+    floater(canvas.width/2, canvas.height*.28, '🌧️ TEMPESTADE!', '#9fe0ff');
+}
+// GOLPE 3 da Tropeira: INVOCA 2 diabretes (adds)
+function summonImps(){
+    for(let i=0;i<2;i++){
+        birds.push({
+            x:boss.x+rand(-40,40), y:boss.y+rand(0,30), baseY:boss.y+40,
+            speed:rand(2,3.2), size:rand(14,18),
+            wingAngle:rand(0,6), wingSpeed:0.2, amplitude:2.6, vertFreq:0.06,
+            tick:rand(0,100), dead:false, color:'#ff3300', pts:10, glow:true,
+            isBat:false, isMutant:false, isHell:true, isImp:true, hp:3, flash:0
+        });
+    }
+    floater(boss.x, boss.y-boss.size, '👺 DIABRETES!', '#ff6633');
 }
 
 // player damage
@@ -1992,12 +2001,15 @@ function animate(now){
             if(boss.type==='heitor'){
                 if(--boss.atkCD<=0){ spawnBossShot('fire'); boss.atkCD = enrage?32:60; }
                 if(--boss.atk2CD<=0){ spawnBallVolley();    boss.atk2CD = enrage?95:150; }
+                if(--boss.atk3CD<=0){ kickGiantBall();      boss.atk3CD = enrage?170:260; } // chutaço rolante
             } else if(boss.type==='henrique'){
                 if(--boss.atkCD<=0){ spawnBossShot('water'); boss.atkCD = enrage?34:58; }
                 if(--boss.atk2CD<=0){ spawnTsunami();        boss.atk2CD = enrage?150:230; }
-            } else { // Tropeira — épica: leque de fogo + chuva de meteoros + tsunami de fogo
+                if(--boss.atk3CD<=0){ waterRain();           boss.atk3CD = enrage?200:300; } // tempestade
+            } else { // Tropeira — leque de fogo + chuva de meteoros + invocação de diabretes
                 if(--boss.atkCD<=0){ spawnFireSpread(enrage?5:3); boss.atkCD = enrage?40:66; }
                 if(--boss.atk2CD<=0){ spawnBallVolley(true);      boss.atk2CD = enrage?80:120; }
+                if(--boss.atk3CD<=0){ summonImps();               boss.atk3CD = enrage?240:360; } // invoca adds
             }
         }
         drawBoss();
@@ -2026,15 +2038,17 @@ function animate(now){
             if(m.warn===0) m.falling=true;
             continue;
         }
-        m.vy+=0.65; m.y+=m.vy;
+        if(!m.rain) m.vy+=0.65;
+        m.y+=m.vy;
         drawMeteor(m);
         if(P.character){
             const dx=m.x-ch.x, dy=m.y-(ch.y-10);
-            if(Math.hypot(dx,dy)<26){ bigExplode(m.x,m.y); hurtPlayer(1); meteors.splice(i,1); continue; }
+            const hitR = m.rain?16:26;
+            if(Math.hypot(dx,dy)<hitR){ if(m.rain) hitSpark(m.x,m.y); else bigExplode(m.x,m.y); hurtPlayer(1); meteors.splice(i,1); continue; }
         }
         if(m.y>=groundY()){
-            bigExplode(m.x,groundY());
-            if(P.character && Math.abs(m.x-ch.x)<52) hurtPlayer(1);
+            if(m.rain){ hitSpark(m.x,groundY()); }          // respingo inofensivo
+            else { bigExplode(m.x,groundY()); if(P.character && Math.abs(m.x-ch.x)<52) hurtPlayer(1); }
             meteors.splice(i,1);
         }
     }
@@ -2195,6 +2209,11 @@ function animate(now){
 
 updateUIForState();
 requestAnimationFrame(animate);
+
+// registra o service worker (PWA) — permite instalar o jogo como app
+if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
 </script>
 </body>
 </html>
