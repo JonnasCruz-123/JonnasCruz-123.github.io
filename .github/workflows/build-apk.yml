@@ -1,0 +1,91 @@
+name: Build Android APK
+
+# Gera um APK (Android) do jogo empacotando o index.html com o Apache Cordova.
+# Rode manualmente na aba "Actions" -> "Build Android APK" -> "Run workflow",
+# ou ele roda sozinho quando o index.html muda na main.
+# O APK fica em: run -> Artifacts (cacada-debug-apk) e também na Release "apk-latest".
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'icon-*.png'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Install Cordova
+        run: npm install -g cordova@12
+
+      - name: Scaffold Cordova app and copy the game
+        run: |
+          cordova create app com.jonnascruz.cacada "Cacada"
+          cp index.html app/www/index.html
+          cp -f manifest.webmanifest app/www/ 2>/dev/null || true
+          cp -f icon-192.png app/www/ 2>/dev/null || true
+          cp -f icon-512.png app/www/ 2>/dev/null || true
+
+      - name: Configure landscape orientation
+        run: |
+          cd app
+          sed -i 's#</widget>#    <preference name="Orientation" value="landscape" />\n    <preference name="SplashMaintainAspectRatio" value="true" />\n</widget>#' config.xml
+          cat config.xml
+
+      - name: Add Android platform
+        run: cd app && cordova platform add android@13
+
+      - name: Build debug APK
+        run: cd app && cordova build android --debug
+
+      - name: Locate APK
+        id: apk
+        run: |
+          FILE=$(find app/platforms/android -name '*-debug.apk' | head -n1)
+          echo "Found APK: $FILE"
+          echo "path=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cacada-debug-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Publish APK to Release (apk-latest)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Caçada — APK mais recente
+          body: |
+            APK de debug gerado automaticamente a partir do último `index.html`.
+            Baixe o `.apk`, permita "instalar de fontes desconhecidas" e instale no Android.
+          files: ${{ steps.apk.outputs.path }}
