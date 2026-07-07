@@ -127,6 +127,18 @@
         @keyframes pulseBoss { 0%,100%{ box-shadow:0 0 18px rgba(255,40,0,.4);} 50%{ box-shadow:0 0 34px rgba(255,60,0,.8);} }
         #btn-boss:active { transform: translateX(-50%) scale(0.95); }
 
+        #btn-nuke {
+            position: fixed; bottom: 150px; right: 20px; z-index: 200; display: none;
+            align-items: center; justify-content: center;
+            background: linear-gradient(145deg,#3a3a10,#665500); color: #ffee66;
+            border: 2px solid rgba(255,220,50,.9); border-radius: 14px;
+            padding: 12px 16px; cursor: pointer; font-weight: 800; font-size: .85rem;
+            font-family:'Courier New',monospace; letter-spacing:1px;
+            box-shadow: 0 0 16px rgba(255,220,0,.35);
+        }
+        #btn-nuke.ready { animation: pulseBoss 1s infinite; }
+        #btn-nuke:active { transform: scale(0.94); }
+
         #btn-fs {
             position: fixed; top: 12px; right: 14px; z-index: 200;
             width: 46px; height: 46px; border-radius: 12px; cursor: pointer;
@@ -270,6 +282,7 @@
         body:not(.state-playing) #cooldown-ui,
         body:not(.state-playing) #hearts,
         body:not(.state-playing) #btn-boss,
+        body:not(.state-playing) #btn-nuke,
         body:not(.state-playing) #boss-bar,
         body:not(.state-playing) #char-hint { display: none !important; }
 
@@ -316,6 +329,7 @@
 <button id="btn-jump"><span class="jico">⬆️</span>PULAR</button>
 
 <button id="btn-boss">💀 Desafiar Heitor (Chefão)</button>
+<button id="btn-nuke">☢️ NUKE</button>
 <button id="btn-fs" title="Tela cheia">⛶</button>
 
 <button id="btn-loja">
@@ -356,12 +370,23 @@
     </div>
 </div>
 
-<!-- Victory -->
+<!-- Phase clear (Heitor derrotado -> caverna) -->
+<div id="phase-ov" class="screen">
+    <div class="card">
+        <div class="demon-emoji">🕯️</div>
+        <h1>FASE 1 COMPLETA!</h1>
+        <div class="sub">Você derrotou <b>Heitor, o Bom de Bola</b>! <span>+100 💀</span><br>
+        Agora você desce para a <b>CAVERNA</b>: menos pássaros, morcegos, 10 novos poderes + a <b>Nuke Bomb Master</b> e o chefão <b>Henrique, o Bom da Água</b>.</div>
+        <button class="big-btn" id="btn-phase">⛏️ Entrar na Caverna</button>
+    </div>
+</div>
+
+<!-- Victory (final) -->
 <div id="victory-ov" class="screen">
     <div class="card">
         <div class="demon-emoji">🏆</div>
-        <h1>VITÓRIA!</h1>
-        <div class="sub">Você derrotou <b>Heitor, o Bom de Bola</b>! <span id="win-reward">+100 💀</span></div>
+        <h1>VITÓRIA FINAL!</h1>
+        <div class="sub">Você derrotou <b>Henrique, o Bom da Água</b> e zerou o jogo! <span id="win-reward">+200 💀</span></div>
         <button class="big-btn" id="btn-continue">▶ Continuar jogando</button>
     </div>
 </div>
@@ -392,10 +417,13 @@ const mobileHint= document.getElementById('mobile-hint');
 const heartsEl  = document.getElementById('hearts');
 const bossBar   = document.getElementById('boss-bar');
 const bossFill  = document.getElementById('boss-bar-fill');
+const bossNameEl= document.getElementById('boss-name');
 const btnBoss   = document.getElementById('btn-boss');
+const btnNuke   = document.getElementById('btn-nuke');
 const menuOv    = document.getElementById('menu-ov');
 const gameoverOv= document.getElementById('gameover-ov');
 const victoryOv = document.getElementById('victory-ov');
+const phaseOv   = document.getElementById('phase-ov');
 
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 if(isTouch) document.body.classList.add('touch');
@@ -421,14 +449,21 @@ let mouseX       = 0, mouseY = 0;
 let currentWep   = 1;
 let lockedTimer  = null;
 let frameTick    = 0;
-let bossAutoTriggered = false;
+let level        = 1;                 // 1 = campo, 2 = caverna
+let heitorDefeated = false, henriqueDefeated = false;
+let nukeCD = 0, nukeFlash = 0;
+const NUKE_CD = 1200;                 // ~20s de recarga
 const keys       = {};
 
 const P = {
     rocket:false, rocketBig:false, rocketLaser:false, bazooka:false, character:false, charLaser:false,
-    // 10 novas habilidades
+    // habilidades nível 1
     dblJump:false, rapidFire:false, spreadShot:false, piercing:false, moveFast:false,
-    maxHp:false, regen:false, shield:false, laserTurbo:false, fury:false
+    maxHp:false, regen:false, shield:false, laserTurbo:false, fury:false,
+    // habilidades nível 2 (caverna)
+    hpUp2:false, regen2:false, shield2:false, dblJump2:false, moveFast2:false,
+    rapidFire2:false, laserMega:false, fury2:false, explosiveShot:false, vampire:false,
+    nuke:false
 };
 
 // ── arrays ───────────────────────────────────────────────────────────────────
@@ -441,6 +476,7 @@ const squirrels     = [];
 const treeSquirrels = [];
 const lasers        = [];
 const pellets       = [];
+const waves         = [];   // tsunamis do Henrique
 const fireballs     = [];
 const meteors       = [];
 let   grassData     = [];
@@ -455,11 +491,13 @@ const ch = { x:0, y:0, vy:0, onGround:true, facing:1, walking:false, frame:0, sh
 let joyX = 0;
 let shieldUp = false, shieldCD = SHIELD_RECHARGE;
 
-function baseMaxHp(){ return P.maxHp ? 8 : 5; }
+function baseMaxHp(){ return 5 + (P.maxHp?3:0) + (P.hpUp2?3:0); }
+function bossDmgMult(){ return P.fury2 ? 3 : (P.fury ? 2 : 1); }
+function shieldRecharge(){ return P.shield2 ? 240 : SHIELD_RECHARGE; }
 
 function jump(){
     if(gameState!=='playing' || !P.character) return;
-    const maxJumps = P.dblJump ? 2 : 1;
+    const maxJumps = P.dblJump2 ? 3 : (P.dblJump ? 2 : 1);
     if(ch.jumps < maxJumps){ ch.vy = JUMP_VEL; ch.onGround = false; ch.jumps++; }
 }
 
@@ -546,31 +584,52 @@ function pickBirdType(){
 function spawnBird(off){
     const maxY = P.character ? groundY()-40 : canvas.height-20;
     const by   = rand(20, Math.max(40,maxY));
-    const t    = pickBirdType();
+    // Na caverna (nível 2) a maioria são morcegos; poucos pássaros pálidos.
+    let isBat=false, color, pts, glow=false, sizeMul=1, speedMul=1;
+    if(level===2){
+        if(Math.random()<0.65){ isBat=true; color='#2a2233'; pts=3; sizeMul=1; speedMul=1.3; }
+        else { color='#8a94a6'; pts=2; sizeMul=0.9; speedMul=1.1; }
+    } else {
+        const t=pickBirdType(); color=t.color; pts=t.pts; glow=t.glow; sizeMul=t.sizeMul; speedMul=t.speedMul;
+    }
     return {
         x: off ? rand(canvas.width, canvas.width*3) : canvas.width+rand(0,canvas.width),
         y:by, baseY:by,
-        speed: rand(1.5,4.5)*t.speedMul, size: rand(7,13)*t.sizeMul,
+        speed: rand(1.5,4.5)*speedMul, size: rand(7,13)*sizeMul,
         wingAngle: rand(0,Math.PI*2), wingSpeed: rand(0.08,0.18),
-        amplitude: rand(0.3,0.7), vertFreq: rand(0.01,0.03),
+        amplitude: rand(0.3,0.7)*(isBat?1.6:1), vertFreq: rand(0.01,0.03)*(isBat?1.8:1),
         tick: rand(0,1000), dead:false,
-        color:t.color, pts:t.pts, glow:t.glow
+        color, pts, glow, isBat
     };
 }
 for(let i=0;i<NUM_BIRDS;i++) birds.push(spawnBird(true));
 
+const BAT_UP = ["D.....D","DD.D.DD","DDDDDDD",".D.D.D.","..D.D.."];
+const BAT_DN = ["..D.D..",".DDDDD.","DDDDDDD","DD.D.DD","D.....D"];
 function drawBird(b){
     const unit=Math.max(2,Math.round(b.size*0.5));
+    if(b.isBat){
+        const frame=Math.sin(b.wingAngle)>0 ? BAT_UP : BAT_DN;
+        drawSprite(frame, { D:b.color }, b.x, b.y, unit, false, null);
+        // olhos vermelhos
+        pxRect(b.x-unit, b.y, unit*0.8, unit*0.8, '#ff3333');
+        pxRect(b.x+unit*0.3, b.y, unit*0.8, unit*0.8, '#ff3333');
+        return;
+    }
     const frame=Math.sin(b.wingAngle)>0 ? BIRD_UP : BIRD_DN;
     drawSprite(frame, { B:b.color }, b.x, b.y, unit, false, b.glow?b.color:null);
 }
 
+function vampHeal(){
+    if(P.vampire && ch.hp<ch.maxHp && Math.random()<0.12){ ch.hp++; refreshHearts(); floater(ch.x,ch.y-34,'+1❤️','#ff6699'); }
+}
 function killBird(b){
     if(b.dead)return;
     explode(b.x,b.y,b.size);
     b.dead=true;
     addKills(b.pts);
     if(b.pts>=5) floater(b.x,b.y-8,'+'+b.pts+'💀', b.color==='#ffcf33'?'#ffd700':b.color);
+    vampHeal();
     const i=birds.indexOf(b);
     setTimeout(()=>{ if(i!==-1) birds[i]=spawnBird(false); },2000);
 }
@@ -738,7 +797,33 @@ function drawCharacter(x,y,facing,walking,frame){
 }
 
 // ── ground & tree ─────────────────────────────────────────────────────────────
+function drawCaveBackdrop(){
+    const w=canvas.width, h=canvas.height;
+    const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#241a2e'); g.addColorStop(1,'#0d0810');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // ceiling rock band
+    pxRect(0,0,w,42,'#3a2f3f');
+    pxRect(0,38,w,4,'#241d2a');
+    // stalactites (deterministic)
+    for(let x=0;x<w;x+=52){
+        const hh=28+((x*7)%44);
+        for(let k=0;k<hh;k+=6){ const ww=Math.max(4, 22-(k/hh)*22); pxRect(x+14-ww/2,42+k,ww,6,'#2a2030'); }
+    }
+    // glowing crystals
+    for(let x=90;x<w;x+=230){ blockCircle(x, 66+((x*3)%20), 6, 3, '#66ccff'); }
+}
+function drawCaveGround(){
+    const gy=groundY(), w=canvas.width, h=canvas.height;
+    pxRect(0,gy,w,h-gy,'#2c2430');           // rock floor
+    pxRect(0,gy-12,w,14,'#3a3040');          // ledge
+    pxRect(0,gy-12,w,5,'#4a4052');           // highlight
+    ctx.fillStyle='#241d2a';
+    for(let yy=gy+12; yy<h; yy+=16){ for(let xx=(yy%32); xx<w; xx+=32){ ctx.fillRect(xx,yy,6,6); } }
+    // a few glowing floor crystals
+    for(let x=140;x<w;x+=260){ blockCircle(x, gy-16, 5, 3, '#5fb0e0'); }
+}
 function drawGround(){
+    if(level===2){ drawCaveGround(); return; }
     const gy=groundY(), w=canvas.width, h=canvas.height;
     pxRect(0,gy,w,h-gy,'#7a5c12');          // dirt
     // dirt speckle texture
@@ -785,12 +870,14 @@ function fireCharLaser(){
     ch.facing = dx<0?-1:1;
     const len   = Math.hypot(canvas.width,canvas.height)+120;
     const ex=ox+dx*len, ey=oy+dy*len;
-    const perpx=-dy, perpy=dx, off=P.laserTurbo?11:7;
+    const off = P.laserMega?15 : (P.laserTurbo?11:7);
+    const lw  = P.laserMega?8 : (P.laserTurbo?6:4);
+    const perpx=-dy, perpy=dx;
     for(const s of [off,-off]){
         const sx=ox+perpx*s, sy=oy+perpy*s;
         const bx=ex+perpx*s, by=ey+perpy*s;
         ctx.save();
-        ctx.strokeStyle='#ff3355'; ctx.lineWidth=(P.laserTurbo?6:4)+Math.sin(frameTick*.6); ctx.lineCap='round';
+        ctx.strokeStyle='#ff3355'; ctx.lineWidth=lw+Math.sin(frameTick*.6); ctx.lineCap='round';
         ctx.shadowColor='#ff3355'; ctx.shadowBlur=14; ctx.globalAlpha=.9;
         ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(bx,by); ctx.stroke();
         ctx.strokeStyle='#fff'; ctx.lineWidth=1.6; ctx.shadowBlur=6; ctx.globalAlpha=1;
@@ -812,7 +899,7 @@ function fireCharLaser(){
     for(let sq of squirrels){ if(!sq.dead && onBeam(sq.x,sq.y)) killSquirrel(sq); }
     for(let t of treeSquirrels){ if(!t.dead && onBeam(t.x,t.y)) killTreeSquirrel(t); }
     if(boss.active && !boss.entering && onBeam(boss.x,boss.y)){
-        damageBoss((P.laserTurbo?1.4:0.7)*(P.fury?2:1));
+        damageBoss((P.laserMega?2.2 : (P.laserTurbo?1.4:0.7)) * bossDmgMult());
     }
 }
 
@@ -865,35 +952,57 @@ function updateMobileControls(){
     mobileHint.classList.toggle('vis', gameState==='playing' && (P.character||P.rocket||P.bazooka));
     if(!on) joyX=0;
 }
+function allLevel2Bought(){ return ITEMS.filter(i=>i.minLevel===2).every(i=>P[i.id]); }
 function updateBossButton(){
-    btnBoss.style.display = (gameState==='playing' && P.character && !boss.active) ? 'flex' : 'none';
+    let show=false, label='';
+    if(gameState==='playing' && P.character && !boss.active){
+        if(level===1 && !heitorDefeated){ show=true; label='💀 Desafiar Heitor'; }
+        else if(level===2 && !henriqueDefeated && allLevel2Bought()){ show=true; label='🌊 Desafiar Henrique'; }
+    }
+    btnBoss.style.display = show?'flex':'none';
+    if(show) btnBoss.textContent=label;
+}
+function updateNukeButton(){
+    const show = gameState==='playing' && P.nuke;
+    btnNuke.style.display = show?'flex':'none';
+    if(show) btnNuke.textContent = nukeCD>0 ? ('☢️ '+Math.ceil(nukeCD/60)+'s') : '☢️ NUKE';
+    btnNuke.classList.toggle('ready', nukeCD<=0);
 }
 function updateUIForState(){
-    document.body.classList.remove('state-menu','state-playing','state-over','state-victory');
-    document.body.classList.add('state-'+({menu:'menu',playing:'playing',gameover:'over',victory:'victory'}[gameState]));
+    document.body.classList.remove('state-menu','state-playing','state-over','state-victory','state-phase');
+    document.body.classList.add('state-'+({menu:'menu',playing:'playing',gameover:'over',victory:'victory',phase:'phase'}[gameState]));
     menuOv.classList.toggle('open', gameState==='menu');
     gameoverOv.classList.toggle('open', gameState==='gameover');
     victoryOv.classList.toggle('open', gameState==='victory');
+    phaseOv.classList.toggle('open', gameState==='phase');
     updateMobileControls();
     updateBossButton();
+    updateNukeButton();
     refreshHearts();
 }
 
-// ── boss: Heitor, o Bom de Bola ───────────────────────────────────────────────────
-const boss = { active:false, entering:false, x:0, y:0, baseY:0, size:60,
-               hp:0, maxHp:340, tick:0, wingAngle:0, fireCD:70, meteorCD:150 };
+// ── bosses: Heitor (bola/fogo) e Henrique (água/vento) ─────────────────────────────
+const boss = { active:false, entering:false, type:'heitor', x:0, y:0, baseY:0, size:70,
+               hp:0, maxHp:340, hitR:105, tick:0, wingAngle:0, atkCD:70, atk2CD:150 };
 
 function summonBoss(){
     if(gameState!=='playing' || !P.character || boss.active) return;
-    boss.active=true; boss.entering=true;
-    boss.maxHp = 340; boss.hp = boss.maxHp;
-    boss.size = 60; boss.tick=0; boss.wingAngle=0;
-    boss.x = canvas.width*.5; boss.y = -120;
-    boss.baseY = canvas.height*.28;
-    boss.fireCD = 90; boss.meteorCD = 150;
-    bossBar.classList.add('on'); updateBossBar();
-    updateBossButton();
-    floater(canvas.width/2, canvas.height*.4, '⚠️ HEITOR CHEGOU!', '#ff5533');
+    const type = level===1 ? 'heitor' : 'henrique';
+    if(type==='heitor' && heitorDefeated) return;
+    if(type==='henrique' && (henriqueDefeated || !allLevel2Bought())) return;
+    boss.active=true; boss.entering=true; boss.type=type;
+    boss.size = 70; boss.hitR = boss.size*1.5; boss.tick=0; boss.wingAngle=0;
+    boss.x = canvas.width*.5; boss.y = -140; boss.baseY = canvas.height*.26;
+    if(type==='heitor'){
+        boss.maxHp=340; boss.hp=340; boss.atkCD=90; boss.atk2CD=150;
+        bossNameEl.innerHTML='🔥 HEITOR, <span>O BOM DE BOLA</span> 🔥';
+        floater(canvas.width/2, canvas.height*.4, '⚠️ HEITOR CHEGOU!', '#ff5533');
+    } else {
+        boss.maxHp=420; boss.hp=420; boss.atkCD=80; boss.atk2CD=260;
+        bossNameEl.innerHTML='🌊 HENRIQUE, <span>O BOM DA ÁGUA</span> 🌊';
+        floater(canvas.width/2, canvas.height*.4, '⚠️ HENRIQUE CHEGOU!', '#4cc3ff');
+    }
+    bossBar.classList.add('on'); updateBossBar(); updateBossButton();
 }
 function updateBossBar(){ bossFill.style.width = Math.max(0,boss.hp/boss.maxHp*100)+'%'; }
 function damageBoss(n){
@@ -903,11 +1012,55 @@ function damageBoss(n){
     if(boss.hp<=0) defeatBoss();
 }
 function defeatBoss(){
+    const t=boss.type;
     boss.active=false; boss.entering=false;
     bossBar.classList.remove('on');
-    for(let i=0;i<6;i++) setTimeout(()=>bigExplode(boss.x+rand(-60,60),boss.y+rand(-60,60)), i*120);
-    fireballs.length=0; meteors.length=0;
-    setTimeout(()=>endGame(true), 900);
+    for(let i=0;i<7;i++) setTimeout(()=>bigExplode(boss.x+rand(-80,80),boss.y+rand(-80,80)), i*110);
+    fireballs.length=0; meteors.length=0; waves.length=0;
+    if(t==='heitor'){ heitorDefeated=true; addKills(100); setTimeout(phaseClear, 950); }
+    else { henriqueDefeated=true; addKills(200); setTimeout(()=>endGame(true), 950); }
+}
+function drawBoss(){ if(boss.type==='heitor') drawDemon(boss); else drawWaterDemon(boss); }
+
+// Henrique — demônio de água/vento (azul)
+function drawWaterDemon(b){
+    const s=b.size, x=Math.round(b.x), y=Math.round(b.y), u=Math.max(3,Math.round(s/12));
+    const flap=Math.sin(b.wingAngle)*s*0.22;
+    // swirly wind wings
+    for(const dir of [-1,1]){
+        for(let i=0;i<6;i++){
+            const wx = x + dir*(s*0.55 + i*s*0.16);
+            const wy = y - s*0.35 - flap*(i/6) + i*i*u*0.5;
+            const wh = Math.max(u, s*0.55 - i*u*1.1);
+            pxRect(wx - (dir<0?u*2.4:0), wy, u*2.4, wh, '#0d3f66');
+        }
+    }
+    pxRect(x-s*0.7, y+s*0.1, u*2, s*0.5, '#1867a0');
+    pxRect(x+s*0.7-u*2, y+s*0.1, u*2, s*0.5, '#1867a0');
+    // body
+    blockCircle(x, y, s*0.78, u, '#0d3f66');
+    blockCircle(x, y, s*0.6, u, '#1e7fb8');
+    blockCircle(x, y+s*0.22, s*0.4, u, '#6cc3e0'); // belly
+    // head
+    blockCircle(x, y-s*0.82, s*0.5, u, '#1e7fb8');
+    // horns (like water fins)
+    pxRect(x-s*0.46, y-s*1.5, u*2, s*0.55, '#0a2b45');
+    pxRect(x-s*0.5,  y-s*1.5, u*2, u*2,    '#0a2b45');
+    pxRect(x+s*0.46-u*2, y-s*1.5, u*2, s*0.55, '#0a2b45');
+    pxRect(x+s*0.5-u*2,  y-s*1.5, u*2, u*2,    '#0a2b45');
+    // eyes (cyan glow)
+    ctx.save(); ctx.shadowColor='#aef'; ctx.shadowBlur=14;
+    pxRect(x-s*0.32, y-s*0.95, u*2.4, u*2.4, '#cfefff');
+    pxRect(x+s*0.32-u*2.4, y-s*0.95, u*2.4, u*2.4, '#cfefff');
+    ctx.restore();
+    pxRect(x-s*0.32+u*0.6, y-s*0.95+u*0.6, u, u, '#003');
+    pxRect(x+s*0.32-u*2.4+u*0.6, y-s*0.95+u*0.6, u, u, '#003');
+    // mouth
+    pxRect(x-s*0.3, y-s*0.55, s*0.6, u, '#062033');
+    // water droplet "ball"
+    blockCircle(x, y+s*0.78, s*0.3, u, '#2f8fd0');
+    blockCircle(x, y+s*0.78, s*0.18, u, '#9fe0ff');
+    pxRect(x-u, y+s*0.55, u*2, u*2, '#cff');
 }
 
 function drawDemon(b){
@@ -953,34 +1106,102 @@ function drawDemon(b){
     blockCircle(x, y+s*0.78, s*0.09, u, '#ffffee');
 }
 
-// fireballs
-function spawnFireball(){
-    const dx=ch.x-boss.x, dy=(ch.y-10)-(boss.y+boss.size*.7), d=Math.hypot(dx,dy)||1;
-    const sp=5.2;
-    fireballs.push({ x:boss.x, y:boss.y+boss.size*.7, vx:dx/d*sp, vy:dy/d*sp, tick:0 });
+function drawDemon(b){
+    const s=b.size, x=Math.round(b.x), y=Math.round(b.y), u=Math.max(3,Math.round(s/12));
+    const flap=Math.sin(b.wingAngle)*s*0.22;
+    // wings (blocky, both sides)
+    for(const dir of [-1,1]){
+        for(let i=0;i<6;i++){
+            const wx = x + dir*(s*0.55 + i*s*0.16);
+            const wy = y - s*0.35 - flap*(i/6) + i*i*u*0.5;
+            const wh = Math.max(u, s*0.55 - i*u*1.1);
+            pxRect(wx - (dir<0?u*2.4:0), wy, u*2.4, wh, '#4a0a0a');
+        }
+    }
+    // arms holding the ball
+    pxRect(x-s*0.7, y+s*0.1, u*2, s*0.5, '#a01818');
+    pxRect(x+s*0.7-u*2, y+s*0.1, u*2, s*0.5, '#a01818');
+    // body
+    blockCircle(x, y, s*0.78, u, '#7f0000');
+    blockCircle(x, y, s*0.6, u, '#c62828');
+    blockCircle(x, y+s*0.22, s*0.4, u, '#e0603a'); // belly
+    // head
+    blockCircle(x, y-s*0.82, s*0.5, u, '#c62828');
+    // horns
+    pxRect(x-s*0.46, y-s*1.5, u*2, s*0.55, '#2b2b2b');
+    pxRect(x-s*0.5,  y-s*1.5, u*2, u*2,    '#2b2b2b');
+    pxRect(x+s*0.46-u*2, y-s*1.5, u*2, s*0.55, '#2b2b2b');
+    pxRect(x+s*0.5-u*2,  y-s*1.5, u*2, u*2,    '#2b2b2b');
+    // eyes (glow)
+    ctx.save(); ctx.shadowColor='#ffcc00'; ctx.shadowBlur=14;
+    pxRect(x-s*0.32, y-s*0.95, u*2.4, u*2.4, '#ffe000');
+    pxRect(x+s*0.32-u*2.4, y-s*0.95, u*2.4, u*2.4, '#ffe000');
+    ctx.restore();
+    pxRect(x-s*0.32+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
+    pxRect(x+s*0.32-u*2.4+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
+    // mouth + fangs
+    pxRect(x-s*0.3, y-s*0.55, s*0.6, u, '#3a0000');
+    pxRect(x-s*0.22, y-s*0.55, u, u*1.6, '#ffffff');
+    pxRect(x+s*0.22-u, y-s*0.55, u, u*1.6, '#ffffff');
+    // the fire "ball" (bom de bola)
+    blockCircle(x, y+s*0.78, s*0.32, u, '#ff6600');
+    blockCircle(x, y+s*0.78, s*0.2, u, '#ffcc33');
+    blockCircle(x, y+s*0.78, s*0.09, u, '#ffffee');
+}
+
+// boss projectiles (fire = Heitor, water = Henrique)
+function spawnBossShot(kind){
+    const oy=boss.y+boss.size*.7;
+    const dx=ch.x-boss.x, dy=(ch.y-10)-oy, d=Math.hypot(dx,dy)||1;
+    const sp = kind==='water'?6:5.2;
+    fireballs.push({ x:boss.x, y:oy, vx:dx/d*sp, vy:dy/d*sp, tick:0, kind });
 }
 function drawFireball(f){
     const x=Math.round(f.x), y=Math.round(f.y), u=3;
-    blockCircle(x,y,u*4,u,'#ff4400');
-    blockCircle(x,y,u*2.7,u,'#ffaa22');
-    blockCircle(x,y,u*1.3,u,'#ffffcc');
+    if(f.kind==='water'){
+        blockCircle(x,y,u*4,u,'#1e7fb8');
+        blockCircle(x,y,u*2.7,u,'#4cc3ff');
+        blockCircle(x,y,u*1.3,u,'#ffffff');
+    } else {
+        blockCircle(x,y,u*4,u,'#ff4400');
+        blockCircle(x,y,u*2.7,u,'#ffaa22');
+        blockCircle(x,y,u*1.3,u,'#ffffcc');
+    }
 }
-// meteors
-function spawnMeteorVolley(){
+// falling balls from the sky (Heitor)
+function spawnBallVolley(){
     const n = boss.hp < boss.maxHp*.5 ? 3 : 2;
     for(let i=0;i<n;i++){
         meteors.push({ x:rand(40,canvas.width-40), y:-60, vy:0, warn:50+i*14, falling:false });
     }
 }
+const BALL_COLORS=['#ffffff','#ff5533','#33cc66','#3399ff','#ffcc33'];
 function drawMeteor(m){
-    const x=Math.round(m.x), y=Math.round(m.y), u=3;
-    // fiery trail
-    for(let i=1;i<=5;i++){ pxRect(x-u, y-i*u*2, u*2, u*2, i%2?'#ff8800':'#ffcc33'); }
-    // rock
-    blockCircle(x,y,u*4.2,u,'#ff7722');
-    blockCircle(x,y,u*3.4,u,'#4a2f1a');
-    blockCircle(x,y,u*1.8,u,'#6b4a2a');
-    pxRect(x-u*2,y-u,u,u,'#2a1a0e'); pxRect(x+u,y+u,u,u,'#2a1a0e');
+    const x=Math.round(m.x), y=Math.round(m.y), u=3, r=u*4;
+    const col = BALL_COLORS[(m.x|0)%BALL_COLORS.length];
+    blockCircle(x,y,r,u,col);
+    // pentagon-like dark spots (soccer ball)
+    pxRect(x-u,y-u,u*2,u*2,'#222');
+    pxRect(x-r+u,y,u,u,'#222');
+    pxRect(x+r-u*2,y-u,u,u,'#222');
+    pxRect(x,y+r-u*2,u,u,'#222');
+    // shine
+    pxRect(x-u*2,y-u*2,u,u,'#ffffff');
+}
+// tsunamis (Henrique) — vêm de um lado; o jogador precisa PULAR
+function spawnTsunami(){
+    const dir = Math.random()<0.5?1:-1;
+    waves.push({ x: dir>0? -50 : canvas.width+50, dir, speed:6.5, h:78, warn:70 });
+}
+function drawTsunami(wv){
+    const gy=groundY(), x=Math.round(wv.x), top=gy-wv.h;
+    for(let yy=top; yy<gy; yy+=6){
+        const wob=Math.sin((yy+frameTick*3)*0.08)*7*wv.dir;
+        pxRect(x-24+wob, yy, 48, 6, '#2f8fd0');
+        pxRect(x-24+wob, yy, 10, 6, '#1e6fa8');
+    }
+    pxRect(x-28, top-6, 56, 8, '#bfe8ff');       // foam
+    blockCircle(x-wv.dir*10, top, 12, 4, '#7fc7ee');
 }
 
 // player damage
@@ -1009,25 +1230,59 @@ function startGame(){
     updateUIForState();
 }
 function resetPlaying(){
-    fireballs.length=0; meteors.length=0; rockets.length=0; bazookas.length=0; lasers.length=0; pellets.length=0;
+    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; lasers.length=0; pellets.length=0;
     boss.active=false; boss.entering=false; bossBar.classList.remove('on');
-    charFiring=false; bossAutoTriggered=false;
+    charFiring=false; nukeCD=0; nukeFlash=0;
     if(P.character){ ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; ch.iframes=0; ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true; ch.jumps=0; }
-    shieldUp=false; shieldCD=SHIELD_RECHARGE;
+    shieldUp=false; shieldCD=shieldRecharge();
     gameState='playing';
     updateUIForState();
 }
 function endGame(win){
     gameState = win?'victory':'gameover';
     charFiring=false;
-    if(win) addKills(100);
     updateUIForState();
+}
+function phaseClear(){
+    gameState='phase';
+    charFiring=false;
+    updateUIForState();
+}
+function enterLevel2(){
+    level=2;
+    document.body.style.background='#0d0810';
+    // menos pássaros + morcegos
+    birds.length=0; for(let i=0;i<34;i++) birds.push(spawnBird(true));
+    // sem árvore/esquilos na caverna
+    squirrels.length=0; treeSquirrels.length=0;
+    // limpa ameaças e reposiciona o jogador
+    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0;
+    boss.active=false; boss.entering=false; bossBar.classList.remove('on');
+    ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; ch.iframes=0; ch.jumps=0;
+    ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true;
+    charHint.innerHTML='CAVERNA — atire nos morcegos<br>PULE os tsunamis 🌊 do Henrique';
+    gameState='playing';
+    updateUIForState();
+    renderShop();
+    floater(canvas.width/2, canvas.height*.4, '⛏️ NÍVEL 2: A CAVERNA', '#9fd8ff');
+}
+function activateNuke(){
+    if(gameState!=='playing' || !P.nuke || nukeCD>0) return;
+    nukeCD=NUKE_CD; nukeFlash=1;
+    for(let k=0;k<10;k++) setTimeout(()=>bigExplode(rand(0,canvas.width),rand(canvas.height*.2,canvas.height*.8)), k*40);
+    for(let b of birds){ if(!b.dead) killBird(b); }
+    if(boss.active && !boss.entering) damageBoss(150*bossDmgMult());
+    meteors.length=0; fireballs.length=0; waves.length=0;
+    floater(canvas.width/2, canvas.height*.32, '☢️ NUKE!', '#ffee66');
+    updateNukeButton();
 }
 
 document.getElementById('btn-play').onclick   = startGame;
 document.getElementById('btn-retry').onclick  = resetPlaying;
 document.getElementById('btn-continue').onclick = resetPlaying;
+document.getElementById('btn-phase').onclick  = enterLevel2;
 btnBoss.onclick = summonBoss;
+btnNuke.onclick = activateNuke;
 
 document.getElementById('btn-fs').onclick = ()=>{
     if(document.fullscreenElement){ document.exitFullscreen&&document.exitFullscreen(); }
@@ -1053,6 +1308,18 @@ const ITEMS=[
     { id:'shield',    name:'Escudo de Energia',icon:'🛡️',desc:'Um escudo bloqueia 1 dano e recarrega sozinho.', price:60, req:'character' },
     { id:'laserTurbo',name:'Laser Turbo',   icon:'🔴',    desc:'Laser duplo mais grosso e com muito mais dano.', price:70, req:'charLaser' },
     { id:'fury',      name:'Fúria',         icon:'😤',    desc:'Dobra o dano de TODAS as armas contra o chefão.', price:65, req:'character' },
+    // ── FASE 2 (caverna): 10 novos poderes + Nuke Bomb Master ──
+    { id:'hpUp2',       name:'Armadura de Placas', icon:'🛡️🦾', desc:'+3 corações de vida máxima (total 11).', price:90,  req:'character', minLevel:2 },
+    { id:'regen2',      name:'Regeneração Veloz',  icon:'💗',    desc:'Regenera vida quase 2x mais rápido.',    price:85,  req:'regen',     minLevel:2 },
+    { id:'shield2',     name:'Escudo Recarga+',    icon:'🛡️⚡', desc:'O escudo de energia recarrega bem mais rápido.', price:95, req:'shield', minLevel:2 },
+    { id:'dblJump2',    name:'Pulo Triplo',        icon:'🦅',    desc:'Pule uma TERCEIRA vez no ar.',           price:80,  req:'dblJump',   minLevel:2 },
+    { id:'moveFast2',   name:'Turbo Booster',      icon:'🚀👟',  desc:'Velocidade de corrida ainda maior.',     price:80,  req:'moveFast',  minLevel:2 },
+    { id:'rapidFire2',  name:'Metralhadora',       icon:'🔫🔥',  desc:'Espingarda com cadência altíssima.',     price:100, req:'rapidFire', minLevel:2 },
+    { id:'laserMega',   name:'Laser Mega',         icon:'🟥',    desc:'Laser duplo gigante e devastador.',      price:120, req:'laserTurbo',minLevel:2 },
+    { id:'fury2',       name:'Fúria Máxima',       icon:'👹',    desc:'TRIPLICA o dano de todas as armas no chefão.', price:130, req:'fury', minLevel:2 },
+    { id:'explosiveShot',name:'Chumbo Explosivo',  icon:'💥',    desc:'Cada chumbo explode e atinge vários alvos.', price:110, req:'character', minLevel:2 },
+    { id:'vampire',     name:'Vampirismo',         icon:'🧛',    desc:'Chance de recuperar vida a cada abate.', price:105, req:'character', minLevel:2 },
+    { id:'nuke',        name:'Nuke Bomb Master',   icon:'☢️💣',  desc:'ARMA SUPREMA! Botão ☢️ limpa a tela e causa dano massivo no chefão (recarrega em ~20s). Tecla N.', price:150, req:'character', minLevel:2 },
 ];
 
 function renderShop(){
@@ -1060,13 +1327,16 @@ function renderShop(){
     shopGrid.innerHTML='';
     ITEMS.forEach(item=>{
         const bought=P[item.id];
-        const reqOk=!item.req||P[item.req];
+        const lvlOk=(item.minLevel||1)<=level;
+        const reqOk=(!item.req||P[item.req]) && lvlOk;
         const canBuy=kills>=item.price&&reqOk&&!bought;
         const card=document.createElement('div');
         card.className='sitem'+(bought?' bought':'')+(!reqOk?' locked':'');
         if(bought) card.innerHTML='<span class="sbadge">✓ COMPRADO</span>';
         card.innerHTML+=`<div class="sicon">${item.icon}</div><div class="sname">${item.name}</div><div class="sdesc">${item.desc}</div>`;
-        if(item.req&&!P[item.req]){
+        if(!lvlOk){
+            card.innerHTML+=`<div class="sreq">🔒 Fase 2 (Caverna)</div>`;
+        } else if(item.req&&!P[item.req]){
             const req=ITEMS.find(i=>i.id===item.req);
             card.innerHTML+=`<div class="sreq">🔒 Requer: ${req?.name}</div>`;
         }
@@ -1095,8 +1365,8 @@ function doBuy(id,price){
         buildGrass();
     }
     if(id==='charLaser'){ charHint.innerHTML='A/D ou ← → mover · Espaço = pular<br>Segure clique = laser duplo'; }
-    if(id==='maxHp'){ ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; }
-    refreshWHUD(); updateMobileControls(); updateBossButton(); refreshHearts();
+    if(id==='maxHp'||id==='hpUp2'){ ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; }
+    refreshWHUD(); updateMobileControls(); updateBossButton(); updateNukeButton(); refreshHearts();
     renderShop();
 }
 document.getElementById('btn-loja').onclick=()=>{ renderShop(); lojaOv.classList.add('open'); };
@@ -1113,6 +1383,7 @@ window.addEventListener('keydown',e=>{
     if(e.code==='Digit1'&&P.rocket)  { currentWep=1; refreshWHUD(); }
     if(e.code==='Digit2'&&P.bazooka) { currentWep=2; refreshWHUD(); }
     if(e.code==='Space'||e.code==='KeyW'||e.code==='ArrowUp'){ jump(); e.preventDefault(); }
+    if(e.code==='KeyN') activateNuke();
 });
 window.addEventListener('keyup',e=>keys[e.code]=false);
 
@@ -1235,10 +1506,14 @@ function animate(now){
     tickCD(now);
     const playing = gameState==='playing';
 
-    // dramatic red sky when the boss is around
+    // cave backdrop on level 2
+    if(level===2) drawCaveBackdrop();
+
+    // dramatic tint when a boss is around
     if(boss.active){
+        const c = boss.type==='heitor' ? '80,0,0' : '0,50,90';
         const sg=ctx.createLinearGradient(0,0,0,canvas.height*.6);
-        sg.addColorStop(0,'rgba(80,0,0,.45)'); sg.addColorStop(1,'rgba(80,0,0,0)');
+        sg.addColorStop(0,'rgba('+c+',.45)'); sg.addColorStop(1,'rgba('+c+',0)');
         ctx.fillStyle=sg; ctx.fillRect(0,0,canvas.width,canvas.height*.6);
     }
 
@@ -1279,7 +1554,7 @@ function animate(now){
         const hr=(r.big?1.55:1)*16+12;
         if(boss.active&&!boss.entering){
             const dx=r.x-boss.x,dy=r.y-boss.y;
-            if(Math.hypot(dx,dy)<boss.size*1.1+hr){ damageBoss(P.fury?60:30); bigExplode(r.x,r.y); rockets.splice(i,1); continue; }
+            if(Math.hypot(dx,dy)<boss.hitR+hr){ damageBoss(30*bossDmgMult()); bigExplode(r.x,r.y); rockets.splice(i,1); continue; }
         }
         for(let b of birds){
             if(b.dead)continue;
@@ -1301,7 +1576,7 @@ function animate(now){
         bz.y-=bz.speed; bz.tick++;
         if(boss.active&&!boss.entering){
             const dx=bz.x-boss.x,dy=bz.y-boss.y;
-            if(Math.hypot(dx,dy)<boss.size*1.1+30){ damageBoss(P.fury?90:45); bigExplode(bz.x,bz.y); bazookas.splice(i,1); continue; }
+            if(Math.hypot(dx,dy)<boss.hitR+30){ damageBoss(45*bossDmgMult()); bigExplode(bz.x,bz.y); bazookas.splice(i,1); continue; }
         }
         for(let b of birds){
             if(b.dead)continue;
@@ -1339,19 +1614,22 @@ function animate(now){
             boss.x = canvas.width*.5 + Math.sin(boss.tick*0.02)*canvas.width*0.32;
             boss.y = boss.baseY + Math.sin(boss.tick*0.045)*28;
             const enrage = boss.hp < boss.maxHp*.5;
-            // fireballs
-            if(--boss.fireCD<=0){ spawnFireball(); boss.fireCD = enrage?46:80; }
-            // meteors
-            if(--boss.meteorCD<=0){ spawnMeteorVolley(); boss.meteorCD = enrage?150:220; }
+            if(boss.type==='heitor'){
+                if(--boss.atkCD<=0){ spawnBossShot('fire'); boss.atkCD = enrage?46:80; }
+                if(--boss.atk2CD<=0){ spawnBallVolley();   boss.atk2CD = enrage?150:220; }
+            } else {
+                if(--boss.atkCD<=0){ spawnBossShot('water'); boss.atkCD = enrage?52:82; }
+                if(--boss.atk2CD<=0){ spawnTsunami();        boss.atk2CD = enrage?200:300; }
+            }
         }
-        drawDemon(boss);
+        drawBoss();
     }
 
     // fireballs
     for(let i=fireballs.length-1;i>=0;i--){
         const f=fireballs[i];
         f.x+=f.vx; f.y+=f.vy; f.tick++;
-        particles.push({x:f.x,y:f.y,vx:rand(-.6,.6),vy:rand(-.6,.6),life:.5,decay:.06,size:rand(2,5),color:'#ff8800'});
+        particles.push({x:f.x,y:f.y,vx:rand(-.6,.6),vy:rand(-.6,.6),life:.5,decay:.06,size:rand(2,5),color:f.kind==='water'?'#4cc3ff':'#ff8800'});
         drawFireball(f);
         if(P.character){
             const dx=f.x-ch.x, dy=f.y-(ch.y-10);
@@ -1383,6 +1661,30 @@ function animate(now){
         }
     }
 
+    // tsunamis — the player must JUMP over them
+    for(let i=waves.length-1;i>=0;i--){
+        const wv=waves[i];
+        if(wv.warn>0){
+            wv.warn--;
+            // telegraph arrow + text on the incoming side
+            const gy=groundY(), ax = wv.dir>0? 40 : canvas.width-40, ay=gy-46;
+            ctx.save(); ctx.globalAlpha=.5+Math.sin(frameTick*.3)*.35;
+            pxRect(ax-14, ay-5, 28, 10, '#4cc3ff');
+            pxRect(wv.dir>0?ax+14:ax-22, ay-9, 8, 18, '#4cc3ff');
+            ctx.fillStyle='#bfe8ff'; ctx.font='bold 16px "Courier New",monospace'; ctx.textAlign='center';
+            ctx.fillText('🌊 PULE!', canvas.width/2, gy-90); ctx.textAlign='start';
+            ctx.restore();
+            continue;
+        }
+        wv.x += wv.dir*wv.speed;
+        drawTsunami(wv);
+        if(P.character && Math.abs(wv.x-ch.x)<44){
+            const feet = ch.y+36, crest = groundY()-wv.h;
+            if(feet > crest) hurtPlayer(1); // não pulou alto o suficiente
+        }
+        if((wv.dir>0 && wv.x>canvas.width+80)||(wv.dir<0 && wv.x<-80)) waves.splice(i,1);
+    }
+
     // ── character update ──
     if(P.character){
         if(playing){
@@ -1391,7 +1693,7 @@ function animate(now){
             if(keys.ArrowRight||keys.KeyD) dir=1;
             if(Math.abs(joyX)>0.18) dir=joyX;
             const moving=dir!==0;
-            const spd = P.moveFast ? 5 : 3.2;
+            const spd = P.moveFast2 ? 6.5 : (P.moveFast ? 5 : 3.2);
             if(moving){ ch.x+=dir*spd; ch.facing=dir<0?-1:1; }
             ch.walking=moving&&ch.onGround;
             if(ch.walking) ch.frame++;
@@ -1401,12 +1703,13 @@ function animate(now){
             if(ch.y>=groundBase){ ch.y=groundBase; ch.vy=0; ch.onGround=true; ch.jumps=0; }
             if(ch.shotCD>0)ch.shotCD--;
             if(ch.iframes>0)ch.iframes--;
+            if(nukeCD>0) nukeCD--;
             // regen
-            if(P.regen && ch.hp<ch.maxHp && frameTick%210===0){ ch.hp++; refreshHearts(); floater(ch.x,ch.y-30,'+1❤️','#5f5'); }
+            const regenEvery = P.regen2 ? 110 : 210;
+            if((P.regen||P.regen2) && ch.hp<ch.maxHp && frameTick%regenEvery===0){ ch.hp++; refreshHearts(); floater(ch.x,ch.y-30,'+1❤️','#5f5'); }
             // shield recharge
-            if(P.shield && !shieldUp){ if(--shieldCD<=0){ shieldUp=true; shieldCD=SHIELD_RECHARGE; } }
-            // auto-summon the final boss once you've earned enough
-            if(!boss.active && !bossAutoTriggered && totalEarned>=300){ bossAutoTriggered=true; summonBoss(); }
+            if((P.shield||P.shield2) && !shieldUp){ if(--shieldCD<=0){ shieldUp=true; shieldCD=shieldRecharge(); } }
+            if(frameTick%15===0) updateNukeButton();
         }
         // draw (blink during i-frames)
         if(!(ch.iframes>0 && Math.floor(frameTick/4)%2===0)){
@@ -1423,7 +1726,11 @@ function animate(now){
         for(let b of birds){
             if(b.dead)continue;
             const dx=p.x-b.x,dy=p.y-b.y;
-            if(Math.sqrt(dx*dx+dy*dy)<b.size*2){ killBird(b); if(!P.piercing){p.life=0;} break; }
+            if(Math.sqrt(dx*dx+dy*dy)<b.size*2){
+                if(P.explosiveShot){ bigExplode(b.x,b.y); for(let b2 of birds){ if(!b2.dead){ const d2=Math.hypot(p.x-b2.x,p.y-b2.y); if(d2<50) killBird(b2); } } }
+                else killBird(b);
+                if(!P.piercing){p.life=0;} break;
+            }
         }
         if(p.life>0) for(let sq of squirrels){
             if(sq.dead)continue;
@@ -1437,7 +1744,7 @@ function animate(now){
         }
         if(p.life>0 && boss.active && !boss.entering){
             const dx=p.x-boss.x, dy=p.y-boss.y;
-            if(Math.hypot(dx,dy)<boss.size*1.05){ damageBoss(P.fury?6:3); hitSpark(p.x,p.y); if(!P.piercing){p.life=0;} }
+            if(Math.hypot(dx,dy)<boss.hitR){ damageBoss((P.explosiveShot?5:3)*bossDmgMult()); hitSpark(p.x,p.y); if(!P.piercing){p.life=0;} }
         }
         if(p.life<=0){ pellets.splice(i,1); continue; }
         ctx.save(); ctx.globalAlpha=p.life;
@@ -1472,6 +1779,13 @@ function animate(now){
         ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(-f.size*.6,f.size*.4,-f.size*1.2,0); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo( f.size*.6,f.size*.4, f.size*1.2,0); ctx.stroke();
         ctx.restore();
+    }
+
+    // nuke screen flash
+    if(nukeFlash>0){
+        ctx.save(); ctx.globalAlpha=nukeFlash*0.8; ctx.fillStyle='#ffffff';
+        ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+        nukeFlash-=0.05;
     }
 
     requestAnimationFrame(animate);
