@@ -53,10 +53,13 @@ jobs:
           cp -f icon-192.png app/www/ 2>/dev/null || true
           cp -f icon-512.png app/www/ 2>/dev/null || true
 
-      - name: Configure landscape orientation
+      - name: Configure name, icon and orientation
         run: |
           cd app
-          sed -i 's#</widget>#    <preference name="Orientation" value="landscape" />\n    <preference name="SplashMaintainAspectRatio" value="true" />\n</widget>#' config.xml
+          # nome do app com acento
+          sed -i 's#<name>Cacada</name>#<name>Caçada</name>#' config.xml
+          # ícone do demônio (pixel art) + orientação paisagem
+          sed -i 's#</widget>#    <preference name="Orientation" value="landscape" />\n    <icon src="www/icon-512.png" />\n    <platform name="android">\n        <icon src="www/icon-512.png" density="xxxhdpi" />\n        <icon src="www/icon-512.png" density="xxhdpi" />\n        <icon src="www/icon-192.png" density="xhdpi" />\n        <icon src="www/icon-192.png" density="hdpi" />\n        <icon src="www/icon-192.png" density="mdpi" />\n    </platform>\n</widget>#' config.xml
           cat config.xml
 
       - name: Add Android platform
