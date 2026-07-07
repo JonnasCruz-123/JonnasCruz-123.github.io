@@ -45,9 +45,11 @@
         .wslot {
             background: rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.3);
             border-radius: 10px; padding: 6px 12px; color: #888;
-            font-size: 0.75rem; text-align: center; line-height: 1.6; pointer-events: none;
+            font-size: 0.75rem; text-align: center; line-height: 1.6;
+            cursor: pointer; pointer-events: auto; user-select: none;
         }
         .wslot.active { border-color: #ffd700; color: #fff; background: rgba(0,0,0,0.85); }
+        .wslot:active { transform: scale(0.94); }
 
         #locked-msg {
             position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
@@ -251,18 +253,23 @@ let lockedTimer  = null;
 let frameTick    = 0;
 const keys       = {};
 
-const P = { rocket:false, rocketBig:false, rocketLaser:false, bazooka:false, character:false };
+const P = { rocket:false, rocketBig:false, rocketLaser:false, bazooka:false, character:false, charLaser:false };
 
 // ── arrays ───────────────────────────────────────────────────────────────────
-const birds       = [];
-const particles   = [];
-const feathers    = [];
-const rockets     = [];
-const bazookas    = [];
-const squirrels   = [];
-const lasers      = [];
-const pellets     = [];
-let   grassData   = [];
+const birds         = [];
+const particles     = [];
+const feathers      = [];
+const rockets       = [];
+const bazookas      = [];
+const squirrels     = [];
+const treeSquirrels = [];
+const lasers        = [];
+const pellets       = [];
+let   grassData     = [];
+
+// character continuous double-laser fire state
+let charFiring = false;
+const laserAim = { x:0, y:0 };
 
 // ── character ─────────────────────────────────────────────────────────────────
 const ch = { x:0, y:0, vy:0, onGround:true, facing:1, walking:false, frame:0, shotCD:0 };
@@ -286,6 +293,7 @@ function resize(){
     ch.y = groundY()-40;
     if(!ch.x) ch.x = canvas.width/2;
     buildGrass();
+    if(P.character) repositionTreeSquirrels();
 }
 
 function buildGrass(){
@@ -384,6 +392,36 @@ function killSquirrel(sq){
     // show "+5" floater
     particles.push({x:sq.x,y:sq.y-10,vx:rand(-1,1),vy:-2,life:1.2,decay:.02,size:0,text:'+5💀',color:'#ffd700'});
     setTimeout(()=>{ if(i!==-1) squirrels[i]=spawnSquirrel(); },3000);
+}
+
+// ── tree squirrels (perched in the tree) ────────────────────────────────────────
+// Spots are expressed relative to the tree so they follow it on resize.
+function treeSpotList(){
+    const tx = canvas.width*.78, gy = groundY()-14;
+    return [
+        { x:tx-4,  y:gy-72,  size:13 }, // hugging the trunk
+        { x:tx-52, y:gy-150, size:14 }, // left foliage
+        { x:tx+36, y:gy-176, size:13 }, // right foliage
+        { x:tx+2,  y:gy-206, size:12 }, // top of the tree
+    ];
+}
+function spawnTreeSquirrels(){
+    treeSquirrels.length=0;
+    treeSpotList().forEach((s,i)=>{
+        treeSquirrels.push({ spot:i, x:s.x, y:s.y, size:s.size, tick:rand(0,100), dead:false });
+    });
+}
+function repositionTreeSquirrels(){
+    const spots=treeSpotList();
+    for(const t of treeSquirrels){ const s=spots[t.spot]; if(s){ t.x=s.x; t.y=s.y; t.size=s.size; } }
+}
+function killTreeSquirrel(t){
+    if(t.dead)return;
+    explode(t.x,t.y,t.size*1.5);
+    t.dead=true;
+    addKills(5);
+    particles.push({x:t.x,y:t.y-10,vx:rand(-1,1),vy:-2,life:1.2,decay:.02,size:0,text:'+5💀',color:'#ffd700'});
+    setTimeout(()=>{ const s=treeSpotList()[t.spot]; t.dead=false; t.tick=0; if(s){ t.x=s.x; t.y=s.y; } },3000);
 }
 
 // ── particles & explosion ──────────────────────────────────────────────────────
@@ -535,6 +573,45 @@ function fireShotgun(fx,fy,tx,ty){
     particles.push({x:fx,y:fy,vx:(dx/d)*3,vy:(dy/d)*3,life:1,decay:.14,size:14,color:'#ffdd44'});
 }
 
+// ── continuous double laser (character weapon) ───────────────────────────────────
+function fireCharLaser(){
+    const ox=ch.x, oy=ch.y-14;
+    let dx=laserAim.x-ox, dy=laserAim.y-oy;
+    const d=Math.hypot(dx,dy)||1; dx/=d; dy/=d;
+    ch.facing = dx<0?-1:1;
+    const len   = Math.hypot(canvas.width,canvas.height)+120;
+    const ex=ox+dx*len, ey=oy+dy*len;
+    const perpx=-dy, perpy=dx, off=7;
+    // two parallel beams
+    for(const s of [off,-off]){
+        const sx=ox+perpx*s, sy=oy+perpy*s;
+        const bx=ex+perpx*s, by=ey+perpy*s;
+        ctx.save();
+        ctx.strokeStyle='#ff3355'; ctx.lineWidth=4+Math.sin(frameTick*.6)*1; ctx.lineCap='round';
+        ctx.shadowColor='#ff3355'; ctx.shadowBlur=14; ctx.globalAlpha=.9;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(bx,by); ctx.stroke();
+        ctx.strokeStyle='#fff'; ctx.lineWidth=1.6; ctx.shadowBlur=6; ctx.globalAlpha=1;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(bx,by); ctx.stroke();
+        ctx.restore();
+    }
+    // muzzle glow
+    ctx.save();
+    const mg=ctx.createRadialGradient(ox,oy,0,ox,oy,16);
+    mg.addColorStop(0,'rgba(255,255,255,.95)'); mg.addColorStop(.5,'rgba(255,60,90,.7)'); mg.addColorStop(1,'rgba(255,60,90,0)');
+    ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(ox,oy,16,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    // hit everything along the beam (in front of the muzzle, within beam width)
+    const beamW=off+9;
+    const onBeam=(px,py)=>{
+        const rx=px-ox, ry=py-oy;
+        if(rx*dx+ry*dy < 0) return false;               // behind the muzzle
+        return Math.abs(rx*perpx+ry*perpy) < beamW;     // perpendicular distance
+    };
+    for(let b of birds){ if(!b.dead && onBeam(b.x,b.y)) killBird(b); }
+    for(let sq of squirrels){ if(!sq.dead && onBeam(sq.x,sq.y)) killSquirrel(sq); }
+    for(let t of treeSquirrels){ if(!t.dead && onBeam(t.x,t.y)) killTreeSquirrel(t); }
+}
+
 // ── cooldown ───────────────────────────────────────────────────────────────────
 function startCD(ms,label){
     weaponReady=false; cdStart=performance.now(); cdTotal=ms;
@@ -564,6 +641,18 @@ function showLocked(){
     lockedTimer=setTimeout(()=>lockedMsg.classList.remove('show'),2000);
 }
 
+// Tap/click the weapon HUD slots to switch weapon (works on mobile & desktop).
+function selectWeapon(n){
+    if(n===1 && P.rocket)  { currentWep=1; refreshWHUD(); }
+    if(n===2 && P.bazooka) { currentWep=2; refreshWHUD(); }
+}
+function wireSlot(el,n){
+    el.addEventListener('click',e=>{ e.preventDefault(); selectWeapon(n); });
+    el.addEventListener('touchstart',e=>{ e.preventDefault(); selectWeapon(n); },{passive:false});
+}
+wireSlot(ws1,1);
+wireSlot(ws2,2);
+
 // Show/hide on-screen touch controls based on what the player owns.
 function updateMobileControls(){
     if(!isTouch) return;
@@ -576,8 +665,8 @@ function updateMobileControls(){
 // ── input ─────────────────────────────────────────────────────────────────────
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('mousedown',e=>{ if(e.button===2)rightHeld=true; });
-window.addEventListener('mouseup',  e=>{ if(e.button===2)rightHeld=false; });
-window.addEventListener('mousemove',e=>{ mouseX=e.clientX; mouseY=e.clientY; });
+window.addEventListener('mouseup',  e=>{ if(e.button===2)rightHeld=false; if(e.button===0)charFiring=false; });
+window.addEventListener('mousemove',e=>{ mouseX=e.clientX; mouseY=e.clientY; if(charFiring){ laserAim.x=mouseX; laserAim.y=mouseY; } });
 window.addEventListener('keydown',e=>{
     keys[e.code]=true;
     if(e.code==='Digit1'&&P.rocket)  { currentWep=1; refreshWHUD(); }
@@ -616,14 +705,21 @@ function handleTap(mx,my){
         for(let sq of squirrels){
             if(sq.dead)continue;
             const dx=mx-sq.x, dy=my-sq.y;
-            if(Math.sqrt(dx*dx+dy*dy)<sq.size*2.2){ killSquirrel(sq); break; }
+            if(Math.sqrt(dx*dx+dy*dy)<sq.size*2.2){ killSquirrel(sq); return; }
+        }
+        for(let t of treeSquirrels){
+            if(t.dead)continue;
+            const dx=mx-t.x, dy=my-t.y;
+            if(Math.sqrt(dx*dx+dy*dy)<t.size*2.2){ killTreeSquirrel(t); return; }
         }
     }
 }
 
 canvas.addEventListener('mousedown',e=>{
-    if(e.button===0 && rightHeld){ launchRocket(mouseX); return; }
-    if(e.button===0) handleTap(e.clientX, e.clientY);
+    if(e.button!==0) return;
+    if(rightHeld){ launchRocket(mouseX); return; }
+    if(P.charLaser && P.character){ charFiring=true; laserAim.x=mouseX; laserAim.y=mouseY; return; }
+    handleTap(e.clientX, e.clientY);
 });
 
 // ── touch controls ──────────────────────────────────────────────────────────
@@ -635,6 +731,7 @@ canvas.addEventListener('touchstart',e=>{
     e.preventDefault();
     for(const t of e.changedTouches) playTouches.set(t.identifier,{x:t.clientX,y:t.clientY});
     if(playTouches.size>=2){
+        charFiring=false; // second finger switches to the rocket gesture
         if(!rocketFiredThisGesture){
             // launch from the midpoint of the two fingers
             let sx=0,n=0;
@@ -644,7 +741,8 @@ canvas.addEventListener('touchstart',e=>{
         }
     } else if(playTouches.size===1){
         const t=e.changedTouches[0];
-        handleTap(t.clientX,t.clientY);
+        if(P.charLaser && P.character){ charFiring=true; laserAim.x=t.clientX; laserAim.y=t.clientY; }
+        else handleTap(t.clientX,t.clientY);
     }
 },{passive:false});
 
@@ -653,12 +751,15 @@ canvas.addEventListener('touchmove',e=>{
     for(const t of e.changedTouches){
         if(playTouches.has(t.identifier)) playTouches.set(t.identifier,{x:t.clientX,y:t.clientY});
     }
+    if(charFiring && playTouches.size===1){
+        for(const p of playTouches.values()){ laserAim.x=p.x; laserAim.y=p.y; break; }
+    }
 },{passive:false});
 
 function endPlayTouch(e){
     e.preventDefault();
     for(const t of e.changedTouches) playTouches.delete(t.identifier);
-    if(playTouches.size===0) rocketFiredThisGesture=false;
+    if(playTouches.size===0){ rocketFiredThisGesture=false; charFiring=false; }
 }
 canvas.addEventListener('touchend',endPlayTouch,{passive:false});
 canvas.addEventListener('touchcancel',endPlayTouch,{passive:false});
@@ -698,7 +799,8 @@ const ITEMS=[
     { id:'rocketBig', name:'Foguete XL',    icon:'🚀⬆️', desc:'Foguete maior, área de impacto expandida.',                                price:25, req:'rocket' },
     { id:'rocketLaser',name:'Foguete Laser',icon:'⚡🚀',  desc:'O foguete dispara raios laser para os lados enquanto sobe.',               price:40, req:'rocket' },
     { id:'bazooka',   name:'Bazuca',        icon:'💣',    desc:'Projétil lento com explosão em área. Tecla [2] para selecionar.',          price:50, req:null },
-    { id:'character', name:'Personagem',    icon:'🧍🔫',  desc:'Personagem controlável com espingarda doze! Expande o cenário com chão, árvore e esquilos (vale 5💀 cada).', price:80, req:null }
+    { id:'character', name:'Personagem',    icon:'🧍🔫',  desc:'Personagem controlável com espingarda doze! Pula (Espaço/⬆️) e expande o cenário com chão, árvore e esquilos — no chão e na árvore (vale 5💀 cada).', price:80, req:null },
+    { id:'charLaser', name:'Laser Duplo',   icon:'⚡🔫',  desc:'O tiro do personagem vira um laser contínuo DUPLO. Segure o clique / o dedo e mire para varrer o céu.', price:60, req:'character' }
 ];
 
 function renderShop(){
@@ -735,9 +837,13 @@ function doBuy(id,price){
     P[id]=true;
     if(id==='character'){
         for(let i=0;i<NUM_SQUIRRELS;i++) squirrels.push(spawnSquirrel());
+        spawnTreeSquirrels();
         ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true;
         charHint.classList.add('vis');
         buildGrass();
+    }
+    if(id==='charLaser'){
+        charHint.innerHTML='A/D ou ← → mover · Espaço = pular<br>Segure clique = laser duplo';
     }
     refreshWHUD();
     updateMobileControls();
@@ -777,6 +883,12 @@ function animate(now){
             sq.tick++; sq.x-=sq.speed;
             if(sq.x<-70){ sq.x=canvas.width+rand(0,300); sq.y=groundY()-18; }
             drawSquirrel(sq);
+        }
+        // squirrels perched in the tree (gentle idle bob)
+        for(let t of treeSquirrels){
+            if(t.dead)continue;
+            t.tick++;
+            drawSquirrel({ x:t.x, y:t.y+Math.sin(t.tick*.05)*2.5, size:t.size, tick:t.tick });
         }
     }
 
@@ -847,6 +959,7 @@ function animate(now){
         if(ch.y>=groundBase){ ch.y=groundBase; ch.vy=0; ch.onGround=true; }
         if(ch.shotCD>0)ch.shotCD--;
         drawCharacter(ch.x,ch.y,ch.facing,ch.walking,ch.frame);
+        if(charFiring && P.charLaser) fireCharLaser();
     }
 
     // shotgun pellets
@@ -859,6 +972,17 @@ function animate(now){
             const dx=p.x-b.x,dy=p.y-b.y;
             if(Math.sqrt(dx*dx+dy*dy)<b.size*2){ killBird(b); p.life=0; break; }
         }
+        if(p.life>0) for(let sq of squirrels){
+            if(sq.dead)continue;
+            const dx=p.x-sq.x,dy=p.y-sq.y;
+            if(Math.sqrt(dx*dx+dy*dy)<sq.size*1.6){ killSquirrel(sq); p.life=0; break; }
+        }
+        if(p.life>0) for(let t of treeSquirrels){
+            if(t.dead)continue;
+            const dx=p.x-t.x,dy=p.y-t.y;
+            if(Math.sqrt(dx*dx+dy*dy)<t.size*1.6){ killTreeSquirrel(t); p.life=0; break; }
+        }
+        if(p.life<=0){ pellets.splice(i,1); continue; }
         ctx.save(); ctx.globalAlpha=p.life;
         ctx.fillStyle='#ffe066'; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
         ctx.restore();
