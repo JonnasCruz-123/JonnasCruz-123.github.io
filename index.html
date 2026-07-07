@@ -139,6 +139,17 @@
         #btn-nuke.ready { animation: pulseBoss 1s infinite; }
         #btn-nuke:active { transform: scale(0.94); }
 
+        #btn-wep {
+            position: fixed; top: 52px; left: 16px; z-index: 200; display: none;
+            align-items: center; gap: 5px;
+            background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.35);
+            border-radius: 12px; padding: 7px 12px; cursor: pointer; color: #fff;
+            font-size: .8rem; font-family:'Courier New',monospace;
+        }
+        #btn-wep small { opacity:.6; }
+        #btn-wep.laser { border-color:#ff5588; color:#ffd0e0; box-shadow:0 0 12px rgba(255,60,120,.4); }
+        #btn-wep:active { transform: scale(0.95); }
+
         #btn-fs {
             position: fixed; top: 12px; right: 14px; z-index: 200;
             width: 46px; height: 46px; border-radius: 12px; cursor: pointer;
@@ -226,6 +237,23 @@
         .controls-note {
             margin-top: 14px; color: rgba(255,255,255,.6); font-size: .78rem; line-height: 1.7;
         }
+        /* settings */
+        #settings {
+            margin-top: 18px; width: min(420px,90vw);
+            background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.18);
+            border-radius: 14px; padding: 14px 18px;
+        }
+        .set-title { color:#ffd54a; font-weight:800; font-size:.95rem; margin-bottom:10px; letter-spacing:1px; }
+        .set-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0; color:#fff; font-size:.9rem; }
+        .toggle {
+            border:2px solid rgba(255,255,255,.35); border-radius:20px; padding:6px 16px;
+            background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-weight:bold; font-size:.8rem; min-width:92px;
+        }
+        .toggle.on { background:#2e8b45; border-color:#57d977; }
+        .toggle.off{ background:#5a2a2a; border-color:#c05555; color:#ffcccc; }
+        .seg { display:flex; border:2px solid rgba(255,255,255,.25); border-radius:20px; overflow:hidden; }
+        .seg-btn { background:transparent; color:#ccc; border:none; padding:6px 14px; cursor:pointer; font-size:.8rem; font-weight:bold; }
+        .seg-btn.active { background:linear-gradient(135deg,#ffd700,#ff9500); color:#111; }
         /* retro / pixel UI touches */
         .card h1 { font-family:'Courier New',monospace; text-shadow: 4px 4px 0 rgba(0,0,0,.65); }
         .big-btn { border-radius: 6px; box-shadow: 5px 5px 0 rgba(0,0,0,.45); font-family:'Courier New',monospace; }
@@ -283,6 +311,7 @@
         body:not(.state-playing) #hearts,
         body:not(.state-playing) #btn-boss,
         body:not(.state-playing) #btn-nuke,
+        body:not(.state-playing) #btn-wep,
         body:not(.state-playing) #boss-bar,
         body:not(.state-playing) #char-hint { display: none !important; }
 
@@ -316,7 +345,7 @@
 </div>
 
 <div id="locked-msg">🔒 Compre o Foguete na Loja!</div>
-<div id="char-hint">A/D ou ← → mover · Espaço = pular<br>Clique = espingarda</div>
+<div id="char-hint">A/D ou ← → mover · W/↑ = pular<br>Clique = atirar · Q = trocar Doze/Laser · Espaço = item</div>
 
 <div id="boss-bar">
     <div id="boss-name">🔥 HEITOR, <span>O BOM DE BOLA</span> 🔥</div>
@@ -330,6 +359,7 @@
 
 <button id="btn-boss">💀 Desafiar Heitor (Chefão)</button>
 <button id="btn-nuke">☢️ NUKE</button>
+<button id="btn-wep">🔫 <b>DOZE</b> <small>(Q)</small></button>
 <button id="btn-fs" title="Tela cheia">⛶</button>
 
 <button id="btn-loja">
@@ -353,9 +383,25 @@
         <h1>CAÇADA:<br><span>HEITOR, O BOM DE BOLA</span></h1>
         <div class="sub">Abata pássaros de várias espécies, compre poderes na loja e enfrente o chefão demônio no fim.<br>👉 Jogue deitado (paisagem) em tela cheia!</div>
         <button class="big-btn" id="btn-play">▶ Jogar</button>
+
+        <div id="settings">
+            <div class="set-title">⚙️ Configurações</div>
+            <div class="set-row">
+                <span>🔊 Som</span>
+                <button id="set-sound" class="toggle on">LIGADO</button>
+            </div>
+            <div class="set-row">
+                <span>🌅 Fase 1</span>
+                <div class="seg">
+                    <button id="theme-manha" class="seg-btn active">Manhã</button>
+                    <button id="theme-noite" class="seg-btn">De Noite</button>
+                </div>
+            </div>
+        </div>
+
         <div class="controls-note">
-            🖱️ Clique = atirar · Segure botão direito + clique = 🚀 foguete<br>
-            📱 Joystick = mover · ⬆️ = pular · 2 dedos = foguete
+            🖱️ Clique = atirar (Q troca Doze/Laser) · Botão direito + clique = 🚀 · Espaço = item ☢️ · W/↑ = pular<br>
+            📱 Joystick = mover · ⬆️ = pular · 2 dedos = foguete · botões na tela p/ arma, nuke e chefão
         </div>
     </div>
 </div>
@@ -374,10 +420,9 @@
 <div id="phase-ov" class="screen">
     <div class="card">
         <div class="demon-emoji">🕯️</div>
-        <h1>FASE 1 COMPLETA!</h1>
-        <div class="sub">Você derrotou <b>Heitor, o Bom de Bola</b>! <span>+100 💀</span><br>
-        Agora você desce para a <b>CAVERNA</b>: menos pássaros, morcegos, 10 novos poderes + a <b>Nuke Bomb Master</b> e o chefão <b>Henrique, o Bom da Água</b>.</div>
-        <button class="big-btn" id="btn-phase">⛏️ Entrar na Caverna</button>
+        <h1 id="phase-title">FASE COMPLETA!</h1>
+        <div class="sub" id="phase-sub"></div>
+        <button class="big-btn" id="btn-phase">Avançar</button>
     </div>
 </div>
 
@@ -424,6 +469,10 @@ const menuOv    = document.getElementById('menu-ov');
 const gameoverOv= document.getElementById('gameover-ov');
 const victoryOv = document.getElementById('victory-ov');
 const phaseOv   = document.getElementById('phase-ov');
+const phaseTitleEl = document.getElementById('phase-title');
+const phaseSubEl   = document.getElementById('phase-sub');
+const btnPhaseEl   = document.getElementById('btn-phase');
+const btnWep    = document.getElementById('btn-wep');
 
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 if(isTouch) document.body.classList.add('touch');
@@ -449,10 +498,15 @@ let mouseX       = 0, mouseY = 0;
 let currentWep   = 1;
 let lockedTimer  = null;
 let frameTick    = 0;
-let level        = 1;                 // 1 = campo, 2 = caverna
-let heitorDefeated = false, henriqueDefeated = false;
+let level        = 1;                 // 1 = campo, 2 = caverna, 3 = inferno
+let heitorDefeated = false, henriqueDefeated = false, tropeiraDefeated = false;
+let pendingLevel = 2;                 // próxima fase na tela de transição
 let nukeCD = 0, nukeFlash = 0;
 const NUKE_CD = 1200;                 // ~20s de recarga
+let playerWep = 'shotgun';            // arma do personagem: 'shotgun' | 'laser'
+// configurações
+let soundOn = true;
+let phase1Theme = 'manha';            // 'manha' | 'noite'
 const keys       = {};
 
 const P = {
@@ -500,7 +554,7 @@ function shieldRecharge(){ return P.shield2 ? 240 : SHIELD_RECHARGE; }
 function jump(){
     if(gameState!=='playing' || !P.character) return;
     const maxJumps = P.dblJump2 ? 3 : (P.dblJump ? 2 : 1);
-    if(ch.jumps < maxJumps){ ch.vy = JUMP_VEL; ch.onGround = false; ch.jumps++; }
+    if(ch.jumps < maxJumps){ ch.vy = JUMP_VEL; ch.onGround = false; ch.jumps++; sfx('jump'); }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -525,6 +579,38 @@ function buildGrass(){
 }
 resize();
 window.addEventListener('resize', resize);
+
+// ── áudio (WebAudio simples, chiptune) ────────────────────────────────────────────
+let audioCtx = null;
+function initAudio(){
+    if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
+}
+function sfx(type){
+    if(!soundOn || !audioCtx) return;
+    const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    let f=440, dur=0.1, wave='square', v=0.05, up=false, down=false;
+    switch(type){
+        case 'shoot':     f=200; dur=0.08; wave='square';   v=0.05; down=true; break;
+        case 'laser':     f=900; dur=0.05; wave='sawtooth'; v=0.03; up=true;   break;
+        case 'rocket':    f=160; dur=0.2;  wave='sawtooth'; v=0.05; up=true;   break;
+        case 'explosion': f=90;  dur=0.25; wave='sawtooth'; v=0.07; down=true; break;
+        case 'hurt':      f=150; dur=0.2;  wave='square';   v=0.06; down=true; break;
+        case 'buy':       f=680; dur=0.12; wave='triangle'; v=0.06; up=true;   break;
+        case 'boss':      f=110; dur=0.55; wave='sawtooth'; v=0.09; down=true; break;
+        case 'nuke':      f=70;  dur=0.7;  wave='sawtooth'; v=0.1;  down=true; break;
+        case 'jump':      f=480; dur=0.09; wave='square';   v=0.05; up=true;   break;
+        case 'soul':      f=1100;dur=0.06; wave='triangle'; v=0.03; up=true;   break;
+        case 'win':       f=520; dur=0.5;  wave='triangle'; v=0.08; up=true;   break;
+    }
+    o.type=wave; o.frequency.setValueAtTime(f,t);
+    if(up)   o.frequency.exponentialRampToValueAtTime(f*2, t+dur);
+    if(down) o.frequency.exponentialRampToValueAtTime(Math.max(30,f*0.4), t+dur);
+    g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.start(t); o.stop(t+dur);
+}
 
 // ── pixel-art helpers ───────────────────────────────────────────────────────────
 // Everything is drawn as chunky blocks with smoothing off for a retro look.
@@ -586,19 +672,25 @@ function pickBirdType(){
 function spawnBird(off){
     const maxY = P.character ? groundY()-40 : canvas.height-20;
     const by   = rand(20, Math.max(40,maxY));
-    // Na caverna (nível 2): morcegos, pássaros pálidos e o raro Morcego Mutante.
-    let isBat=false, isMutant=false, color, pts, glow=false, sizeMul=1, speedMul=1, hp=1;
+    // Inimigos variam por fase.
+    let isBat=false, isMutant=false, isHell=false, isImp=false, color, pts, glow=false, sizeMul=1, speedMul=1, hp=1;
     if(level===2){
         const roll=Math.random();
         if(roll<0.08){ isBat=true; isMutant=true; color='#8be05a'; pts=8; sizeMul=1.9; speedMul=0.85; hp=3; }
         else if(roll<0.70){ isBat=true; color='#2a2233'; pts=3; sizeMul=1; speedMul=1.3; }
         else { color='#8a94a6'; pts=2; sizeMul=0.9; speedMul=1.1; }
+    } else if(level===3){
+        const roll=Math.random();
+        // Diabrete raro (maior, com vida) + Caveiras Flamejantes comuns
+        if(roll<0.12){ isHell=true; isImp=true; color='#ff3300'; pts=10; sizeMul=1.8; speedMul=1.0; hp=3; glow=true; }
+        else { isHell=true; color='#ff8a00'; pts=4; sizeMul=1; speedMul=1.5; glow=true; }
     } else {
         const t=pickBirdType(); color=t.color; pts=t.pts; glow=t.glow; sizeMul=t.sizeMul; speedMul=t.speedMul;
     }
-    // zig-zag (onda senoidal) bem mais forte para o mutante
-    const ampMul = isMutant ? 2.8 : (isBat ? 1.6 : 1);
-    const frqMul = isMutant ? 2.4 : (isBat ? 1.8 : 1);
+    // zig-zag (onda senoidal) bem mais forte para o mutante/diabrete
+    const wobbly = isMutant || isImp;
+    const ampMul = wobbly ? 2.8 : (isBat||isHell ? 1.6 : 1);
+    const frqMul = wobbly ? 2.4 : (isBat||isHell ? 1.8 : 1);
     return {
         x: off ? rand(canvas.width, canvas.width*3) : canvas.width+rand(0,canvas.width),
         y:by, baseY:by,
@@ -606,21 +698,34 @@ function spawnBird(off){
         wingAngle: rand(0,Math.PI*2), wingSpeed: rand(0.08,0.18)*(isMutant?1.4:1),
         amplitude: rand(0.3,0.7)*ampMul, vertFreq: rand(0.01,0.03)*frqMul,
         tick: rand(0,1000), dead:false,
-        color, pts, glow, isBat, isMutant, hp, flash:0
+        color, pts, glow, isBat, isMutant, isHell, isImp, hp, flash:0
     };
 }
 for(let i=0;i<NUM_BIRDS;i++) birds.push(spawnBird(true));
 
 const BAT_UP = ["D.....D","DD.D.DD","DDDDDDD",".D.D.D.","..D.D.."];
 const BAT_DN = ["..D.D..",".DDDDD.","DDDDDDD","DD.D.DD","D.....D"];
+const SKULL  = [".SSS.","SSSSS","SoSoS","SSSSS",".S.S."];
 function drawBird(b){
     const unit=Math.max(2,Math.round(b.size*0.5));
     const hurt = b.flash>0;
+    if(b.isHell){
+        // caveira flamejante (Diabrete é maior/vermelho)
+        const flick=(Math.floor(b.tick/4)%2);
+        const flameCol = hurt?'#ffffff':(b.isImp?'#ff3300':'#ff8a00');
+        // chama tremeluzente atrás
+        blockCircle(b.x, b.y-unit*(2+flick), unit*1.6, unit, flick?'#ffcc33':'#ff7700');
+        drawSprite(SKULL, { S: hurt?'#ffffff':'#ffe6c0', o:'#3a0a00' }, b.x, b.y, unit, false, flameCol);
+        if(b.isImp){ // chifres
+            pxRect(b.x-unit*2, b.y-unit*2, unit, unit*1.5, '#7a0d00');
+            pxRect(b.x+unit, b.y-unit*2, unit, unit*1.5, '#7a0d00');
+        }
+        return;
+    }
     if(b.isBat){
         const frame=Math.sin(b.wingAngle)>0 ? BAT_UP : BAT_DN;
         const col = hurt ? '#ffffff' : b.color;
         drawSprite(frame, { D:col }, b.x, b.y, unit, false, b.isMutant?'#8be05a':null);
-        // olhos (amarelos no mutante, vermelhos no comum)
         const ec = b.isMutant ? '#ffee33' : '#ff3333';
         pxRect(b.x-unit, b.y, unit*0.8, unit*0.8, ec);
         pxRect(b.x+unit*0.3, b.y, unit*0.8, unit*0.8, ec);
@@ -828,6 +933,28 @@ function drawCharacter(x,y,facing,walking,frame){
 }
 
 // ── ground & tree ─────────────────────────────────────────────────────────────
+function drawLevel1Sky(){
+    const w=canvas.width, h=canvas.height;
+    if(phase1Theme==='noite'){
+        const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#0b1026'); g.addColorStop(1,'#24304f');
+        ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+        // estrelas (determinístico)
+        ctx.fillStyle='#fff';
+        for(let i=0;i<70;i++){ const sx=(i*197)%w, sy=(i*113)%(h*0.6); if((i+Math.floor(frameTick/20))%7) ctx.fillRect(sx,sy,2,2); }
+        // lua
+        blockCircle(w*0.82, h*0.2, 26, 4, '#eef2d0');
+        blockCircle(w*0.82-10, h*0.2-8, 14, 4, '#0b1026');
+    } else {
+        const g=ctx.createLinearGradient(0,0,0,h*0.9); g.addColorStop(0,'#5ea9e0'); g.addColorStop(1,'#bfe8ff');
+        ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+        // sol + nuvens simples
+        blockCircle(w*0.83, h*0.18, 30, 5, '#fff3a0');
+        blockCircle(w*0.83, h*0.18, 22, 5, '#ffe36b');
+    }
+}
+function applyPhase1Theme(){
+    if(level===1) document.body.style.background = phase1Theme==='noite' ? '#0b1026' : '#87CEEB';
+}
 function drawCaveBackdrop(){
     const w=canvas.width, h=canvas.height;
     const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#241a2e'); g.addColorStop(1,'#0d0810');
@@ -853,8 +980,38 @@ function drawCaveGround(){
     // a few glowing floor crystals
     for(let x=140;x<w;x+=260){ blockCircle(x, gy-16, 5, 3, '#5fb0e0'); }
 }
+function drawHellBackdrop(){
+    const w=canvas.width, h=canvas.height;
+    const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#3a0806'); g.addColorStop(.6,'#7a1206'); g.addColorStop(1,'#1a0402');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // rocky ceiling with dripping magma
+    pxRect(0,0,w,36,'#2a0a06');
+    for(let x=0;x<w;x+=60){
+        const hh=20+((x*5)%40);
+        for(let k=0;k<hh;k+=6){ const ww=Math.max(4, 18-(k/hh)*18); pxRect(x+16-ww/2,36+k,ww,6,'#4a0f06'); }
+        pxRect(x+14, 36, 4, 8+((x*3)%14), '#ff5a1e'); // magma drip
+    }
+    // floating embers (deterministic drift)
+    for(let i=0;i<26;i++){
+        const ex=(i*137 + frameTick*1.2)% w;
+        const ey=h - ((i*97 + frameTick*2)% (h*0.85));
+        pxRect(ex, ey, 3, 3, i%2?'#ff7a1e':'#ffcc33');
+    }
+}
+function drawHellGround(){
+    const gy=groundY(), w=canvas.width, h=canvas.height;
+    pxRect(0,gy,w,h-gy,'#2a0d06');            // charred rock
+    // lava cracks glowing
+    pxRect(0,gy-6,w,8,'#ff4400');
+    pxRect(0,gy-6,w,3,'#ffaa22');
+    ctx.fillStyle='#5a1608';
+    for(let yy=gy+12; yy<h; yy+=16){ for(let xx=(yy%32); xx<w; xx+=32){ ctx.fillRect(xx,yy,6,6); } }
+    // glowing lava pockets
+    for(let x=90;x<w;x+=180){ const f=(Math.floor(frameTick/8)+x)%2; blockCircle(x, gy+18, 6, 3, f?'#ff6600':'#ff3300'); }
+}
 function drawGround(){
     if(level===2){ drawCaveGround(); return; }
+    if(level===3){ drawHellGround(); return; }
     const gy=groundY(), w=canvas.width, h=canvas.height;
     pxRect(0,gy,w,h-gy,'#7a5c12');          // dirt
     // dirt speckle texture
@@ -955,7 +1112,8 @@ function refreshWHUD(){
     ws1.style.opacity=P.rocket?'1':'0.3';
     ws2.style.opacity=P.bazooka?'1':'0.3';
 }
-function showLocked(){
+function showLocked(msg){
+    if(msg) lockedMsg.textContent=msg;
     lockedMsg.classList.add('show');
     clearTimeout(lockedTimer);
     lockedTimer=setTimeout(()=>lockedMsg.classList.remove('show'),2000);
@@ -989,6 +1147,7 @@ function updateBossButton(){
     if(gameState==='playing' && P.character && !boss.active){
         if(level===1 && !heitorDefeated){ show=true; label='💀 Desafiar Heitor'; }
         else if(level===2 && !henriqueDefeated && allLevel2Bought()){ show=true; label='🌊 Desafiar Henrique'; }
+        else if(level===3 && !tropeiraDefeated){ show=true; label='👹 Desafiar a Tropeira'; }
     }
     btnBoss.style.display = show?'flex':'none';
     if(show) btnBoss.textContent=label;
@@ -1009,6 +1168,7 @@ function updateUIForState(){
     updateMobileControls();
     updateBossButton();
     updateNukeButton();
+    updateWepHUD();
     refreshHearts();
 }
 
@@ -1018,21 +1178,28 @@ const boss = { active:false, entering:false, type:'heitor', x:0, y:0, baseY:0, s
 
 function summonBoss(){
     if(gameState!=='playing' || !P.character || boss.active) return;
-    const type = level===1 ? 'heitor' : 'henrique';
-    if(type==='heitor' && heitorDefeated) return;
+    const type = level===1 ? 'heitor' : (level===2 ? 'henrique' : 'tropeira');
+    if(type==='heitor'   && heitorDefeated) return;
     if(type==='henrique' && (henriqueDefeated || !allLevel2Bought())) return;
+    if(type==='tropeira' && tropeiraDefeated) return;
     boss.active=true; boss.entering=true; boss.type=type;
-    boss.size = 70; boss.hitR = boss.size*1.5; boss.tick=0; boss.wingAngle=0; boss.hurtFlash=0;
+    boss.size = 70; boss.tick=0; boss.wingAngle=0; boss.hurtFlash=0;
     boss.x = canvas.width*.5; boss.y = -140; boss.baseY = canvas.height*.26;
     if(type==='heitor'){
-        boss.maxHp=340; boss.hp=340; boss.atkCD=90; boss.atk2CD=150;
+        boss.maxHp=520; boss.hp=520; boss.atkCD=70; boss.atk2CD=110;
         bossNameEl.innerHTML='🔥 HEITOR, <span>O BOM DE BOLA</span> 🔥';
         floater(canvas.width/2, canvas.height*.4, '⚠️ HEITOR CHEGOU!', '#ff5533');
-    } else {
-        boss.maxHp=420; boss.hp=420; boss.atkCD=80; boss.atk2CD=260;
+    } else if(type==='henrique'){
+        boss.maxHp=680; boss.hp=680; boss.atkCD=58; boss.atk2CD=180;
         bossNameEl.innerHTML='🌊 HENRIQUE, <span>O BOM DA ÁGUA</span> 🌊';
         floater(canvas.width/2, canvas.height*.4, '⚠️ HENRIQUE CHEGOU!', '#4cc3ff');
+    } else {
+        boss.size = 86; boss.maxHp=1000; boss.hp=1000; boss.atkCD=54; boss.atk2CD=120;
+        bossNameEl.innerHTML='👹 TROPEIRA, <span>A RAINHA DO INFERNO</span> 👹';
+        floater(canvas.width/2, canvas.height*.4, '☠️ A TROPEIRA DESPERTOU!', '#ff7733');
     }
+    boss.hitR = boss.size*1.5;
+    sfx('boss');
     bossBar.classList.add('on'); updateBossBar(); updateBossButton();
 }
 function updateBossBar(){ bossFill.style.width = Math.max(0,boss.hp/boss.maxHp*100)+'%'; }
@@ -1047,21 +1214,64 @@ function defeatBoss(){
     const t=boss.type;
     boss.active=false; boss.entering=false;
     bossBar.classList.remove('on');
-    for(let i=0;i<7;i++) setTimeout(()=>bigExplode(boss.x+rand(-80,80),boss.y+rand(-80,80)), i*110);
+    for(let i=0;i<8;i++) setTimeout(()=>{ bigExplode(boss.x+rand(-90,90),boss.y+rand(-90,90)); sfx('explosion'); }, i*110);
     fireballs.length=0; meteors.length=0; waves.length=0;
-    if(t==='heitor'){ heitorDefeated=true; addKills(100); setTimeout(phaseClear, 950); }
-    else { henriqueDefeated=true; addKills(200); setTimeout(()=>endGame(true), 950); }
+    if(t==='heitor'){ heitorDefeated=true; addKills(100); setTimeout(()=>phaseClear(2), 950); }
+    else if(t==='henrique'){ henriqueDefeated=true; addKills(200); setTimeout(()=>phaseClear(3), 950); }
+    else { tropeiraDefeated=true; addKills(400); setTimeout(()=>endGame(true), 1100); }
 }
 function drawBoss(){
-    if(boss.type==='heitor') drawDemon(boss); else drawWaterDemon(boss);
+    if(boss.type==='heitor') drawDemon(boss);
+    else if(boss.type==='henrique') drawWaterDemon(boss);
+    else drawTropeira(boss);
     // feedback de dano: overlay vermelho piscando sobre o chefão
     if(boss.hurtFlash>0){
         const s=boss.size, u=Math.max(3,Math.round(s/12));
         ctx.save(); ctx.globalAlpha=0.55*(boss.hurtFlash/6);
-        blockCircle(boss.x, boss.y, s*0.8, u, '#ff2222');
-        blockCircle(boss.x, boss.y-s*0.82, s*0.5, u, '#ff2222');
+        blockCircle(boss.x, boss.y, s*0.8, u, '#ffffff');
+        blockCircle(boss.x, boss.y-s*0.82, s*0.5, u, '#ffffff');
         ctx.restore();
     }
+}
+// Tropeira — a rainha demônio do Inferno (roxo/magenta com coroa de chifres)
+function drawTropeira(b){
+    const s=b.size, x=Math.round(b.x), y=Math.round(b.y), u=Math.max(3,Math.round(s/12));
+    const flap=Math.sin(b.wingAngle)*s*0.22;
+    // huge wings
+    for(const dir of [-1,1]){
+        for(let i=0;i<7;i++){
+            const wx = x + dir*(s*0.55 + i*s*0.17);
+            const wy = y - s*0.4 - flap*(i/7) + i*i*u*0.45;
+            const wh = Math.max(u, s*0.62 - i*u*1.05);
+            pxRect(wx - (dir<0?u*2.6:0), wy, u*2.6, wh, '#3a0a2a');
+        }
+    }
+    pxRect(x-s*0.72, y+s*0.1, u*2, s*0.55, '#7a1050');
+    pxRect(x+s*0.72-u*2, y+s*0.1, u*2, s*0.55, '#7a1050');
+    // body
+    blockCircle(x, y, s*0.8, u, '#4a0d33');
+    blockCircle(x, y, s*0.62, u, '#a01e6e');
+    blockCircle(x, y+s*0.22, s*0.42, u, '#ff5aa0');
+    // head
+    blockCircle(x, y-s*0.84, s*0.52, u, '#a01e6e');
+    // crown of horns (5 spikes)
+    for(let k=-2;k<=2;k++){
+        pxRect(x + k*s*0.24 - u, y-s*1.5 - Math.abs(k)*u, u*2, s*0.5 - Math.abs(k)*u*1.5, '#1a1a1a');
+    }
+    // eyes (fiery)
+    ctx.save(); ctx.shadowColor='#ff5533'; ctx.shadowBlur=16;
+    pxRect(x-s*0.32, y-s*0.95, u*2.4, u*2.4, '#ff3300');
+    pxRect(x+s*0.32-u*2.4, y-s*0.95, u*2.4, u*2.4, '#ff3300');
+    ctx.restore();
+    pxRect(x-s*0.32+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
+    pxRect(x+s*0.32-u*2.4+u*0.6, y-s*0.95+u*0.6, u, u, '#000');
+    // grin + fangs
+    pxRect(x-s*0.3, y-s*0.55, s*0.6, u, '#2a0018');
+    pxRect(x-s*0.22, y-s*0.55, u, u*1.7, '#ffffff');
+    pxRect(x+s*0.22-u, y-s*0.55, u, u*1.7, '#ffffff');
+    // fire ball
+    blockCircle(x, y+s*0.8, s*0.3, u, '#ff6600');
+    blockCircle(x, y+s*0.8, s*0.17, u, '#ffdd55');
 }
 // desenho da alma (💀) caída
 function drawSoul(x,y){
@@ -1205,8 +1415,18 @@ function drawDemon(b){
 function spawnBossShot(kind){
     const oy=boss.y+boss.size*.7;
     const dx=ch.x-boss.x, dy=(ch.y-10)-oy, d=Math.hypot(dx,dy)||1;
-    const sp = kind==='water'?6:5.2;
+    const sp = kind==='water'?7:6;
     fireballs.push({ x:boss.x, y:oy, vx:dx/d*sp, vy:dy/d*sp, tick:0, kind });
+}
+// leque de fogo (Tropeira) — vários projéteis em ângulos abertos
+function spawnFireSpread(n){
+    const oy=boss.y+boss.size*.7;
+    const dx=ch.x-boss.x, dy=(ch.y-10)-oy, d=Math.hypot(dx,dy)||1;
+    const base=Math.atan2(dy/d,dx/d), sp=6.4;
+    for(let i=0;i<n;i++){
+        const a=base+(i-(n-1)/2)*0.26;
+        fireballs.push({ x:boss.x, y:oy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, tick:0, kind:'fire' });
+    }
 }
 function drawFireball(f){
     const x=Math.round(f.x), y=Math.round(f.y), u=3;
@@ -1220,24 +1440,30 @@ function drawFireball(f){
         blockCircle(x,y,u*1.3,u,'#ffffcc');
     }
 }
-// falling balls from the sky (Heitor)
-function spawnBallVolley(){
-    const n = boss.hp < boss.maxHp*.5 ? 3 : 2;
+// falling balls from the sky (Heitor) / fire meteors (Tropeira)
+function spawnBallVolley(fire){
+    const enrage = boss.hp < boss.maxHp*.5;
+    const n = fire ? (enrage?5:4) : (enrage?4:3);
     for(let i=0;i<n;i++){
-        meteors.push({ x:rand(40,canvas.width-40), y:-60, vy:0, warn:50+i*14, falling:false });
+        meteors.push({ x:rand(40,canvas.width-40), y:-60, vy:0, warn:(fire?36:44)+i*12, falling:false, fire:!!fire });
     }
 }
 const BALL_COLORS=['#ffffff','#ff5533','#33cc66','#3399ff','#ffcc33'];
 function drawMeteor(m){
     const x=Math.round(m.x), y=Math.round(m.y), u=3, r=u*4;
+    if(m.fire){
+        for(let i=1;i<=5;i++){ pxRect(x-u, y-i*u*2, u*2, u*2, i%2?'#ff8800':'#ffcc33'); } // rastro
+        blockCircle(x,y,r,u,'#ff5522');
+        blockCircle(x,y,u*2.6,u,'#3a1206');
+        blockCircle(x,y,u*1.3,u,'#ff9933');
+        return;
+    }
     const col = BALL_COLORS[(m.x|0)%BALL_COLORS.length];
     blockCircle(x,y,r,u,col);
-    // pentagon-like dark spots (soccer ball)
     pxRect(x-u,y-u,u*2,u*2,'#222');
     pxRect(x-r+u,y,u,u,'#222');
     pxRect(x+r-u*2,y-u,u,u,'#222');
     pxRect(x,y+r-u*2,u,u,'#222');
-    // shine
     pxRect(x-u*2,y-u*2,u,u,'#ffffff');
 }
 // tsunamis (Henrique) — vêm de um lado; o jogador precisa PULAR
@@ -1263,7 +1489,7 @@ function hurtPlayer(n){
     if(shieldUp){ shieldUp=false; shieldCD=SHIELD_RECHARGE; ch.iframes=45; hitSpark(ch.x,ch.y-10); return; }
     ch.hp-=n; if(ch.hp<0)ch.hp=0;
     ch.iframes=75; refreshHearts();
-    explode(ch.x,ch.y-10,18);
+    explode(ch.x,ch.y-10,18); sfx('hurt');
     floater(ch.x,ch.y-30,'-'+n+'❤️','#ff4444');
     if(ch.hp<=0) endGame(false);
 }
@@ -1276,7 +1502,9 @@ function goFullscreen(){
     if(screen.orientation&&screen.orientation.lock){ try{ const p=screen.orientation.lock('landscape'); if(p&&p.catch)p.catch(()=>{}); }catch(e){} }
 }
 function startGame(){
+    initAudio();
     goFullscreen();
+    applyPhase1Theme();
     gameState='playing';
     if(P.character){ ch.hp=ch.maxHp; ch.iframes=0; }
     updateUIForState();
@@ -1293,30 +1521,54 @@ function resetPlaying(){
 function endGame(win){
     gameState = win?'victory':'gameover';
     charFiring=false;
+    if(win) sfx('win'); else sfx('hurt');
     updateUIForState();
 }
-function phaseClear(){
+function phaseClear(next){
+    pendingLevel = next;
     gameState='phase';
     charFiring=false;
+    sfx('win');
+    // conteúdo dinâmico da tela de transição
+    if(next===2){
+        phaseTitleEl.textContent='FASE 1 COMPLETA!';
+        phaseSubEl.innerHTML='Você derrotou <b>Heitor, o Bom de Bola</b>! <span>+100 💀</span><br>Agora desça para a <b>CAVERNA</b>: morcegos, 10 novos poderes + a <b>Nuke Bomb Master</b> e o chefão <b>Henrique, o Bom da Água</b>.';
+        btnPhaseEl.textContent='⛏️ Entrar na Caverna';
+    } else {
+        phaseTitleEl.textContent='FASE 2 COMPLETA!';
+        phaseSubEl.innerHTML='Você derrotou <b>Henrique, o Bom da Água</b>! <span>+200 💀</span><br>Agora entre no <b>INFERNO</b> 🔥: caveiras flamejantes, diabretes e a chefona final <b>Tropeira, a Rainha do Inferno</b>.';
+        btnPhaseEl.textContent='🔥 Descer ao Inferno';
+    }
     updateUIForState();
 }
+function advancePhase(){ if(pendingLevel===3) enterLevel3(); else enterLevel2(); }
 function enterLevel2(){
     level=2;
     document.body.style.background='#0d0810';
-    // menos pássaros + morcegos
     birds.length=0; for(let i=0;i<34;i++) birds.push(spawnBird(true));
-    // sem árvore/esquilos na caverna
     squirrels.length=0; treeSquirrels.length=0;
-    // limpa ameaças e reposiciona o jogador
     fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0; souls.length=0;
     boss.active=false; boss.entering=false; boss.hurtFlash=0; bossBar.classList.remove('on');
     ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; ch.iframes=0; ch.jumps=0;
     ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true;
     charHint.innerHTML='CAVERNA — atire nos morcegos<br>PULE os tsunamis 🌊 do Henrique';
     gameState='playing';
-    updateUIForState();
-    renderShop();
+    updateUIForState(); renderShop();
     floater(canvas.width/2, canvas.height*.4, '⛏️ NÍVEL 2: A CAVERNA', '#9fd8ff');
+}
+function enterLevel3(){
+    level=3;
+    document.body.style.background='#1a0402';
+    birds.length=0; for(let i=0;i<40;i++) birds.push(spawnBird(true));
+    squirrels.length=0; treeSquirrels.length=0;
+    fireballs.length=0; meteors.length=0; waves.length=0; rockets.length=0; bazookas.length=0; pellets.length=0; souls.length=0;
+    boss.active=false; boss.entering=false; boss.hurtFlash=0; bossBar.classList.remove('on');
+    ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; ch.iframes=0; ch.jumps=0;
+    ch.x=canvas.width/2; ch.y=groundY()-40; ch.vy=0; ch.onGround=true;
+    charHint.innerHTML='INFERNO 🔥 — caveiras flamejantes e diabretes<br>Enfrente a Tropeira, a Rainha do Inferno';
+    gameState='playing';
+    updateUIForState(); renderShop();
+    floater(canvas.width/2, canvas.height*.4, '🔥 NÍVEL 3: O INFERNO', '#ff8844');
 }
 function activateNuke(){
     if(gameState!=='playing' || !P.nuke || nukeCD>0) return;
@@ -1326,15 +1578,57 @@ function activateNuke(){
     if(boss.active && !boss.entering) damageBoss(150*bossDmgMult());
     meteors.length=0; fireballs.length=0; waves.length=0;
     floater(canvas.width/2, canvas.height*.32, '☢️ NUKE!', '#ffee66');
+    sfx('nuke');
     updateNukeButton();
+}
+
+// alterna a arma do personagem entre Espingarda (Doze) e Laser
+function toggleWep(){
+    if(gameState!=='playing' || !P.character) return;
+    if(playerWep==='shotgun'){
+        if(!P.charLaser){ showLocked('🔒 Compre o Laser na Loja!'); return; }
+        playerWep='laser';
+    } else { playerWep='shotgun'; }
+    charFiring=false;
+    updateWepHUD();
+}
+function updateWepHUD(){
+    const show = gameState==='playing' && P.character;
+    btnWep.style.display = show?'flex':'none';
+    if(show) btnWep.innerHTML = playerWep==='laser'
+        ? '⚡ <b>LASER</b> <small>(Q)</small>'
+        : '🔫 <b>DOZE</b> <small>(Q)</small>';
+    btnWep.classList.toggle('laser', playerWep==='laser');
 }
 
 document.getElementById('btn-play').onclick   = startGame;
 document.getElementById('btn-retry').onclick  = resetPlaying;
 document.getElementById('btn-continue').onclick = resetPlaying;
-document.getElementById('btn-phase').onclick  = enterLevel2;
+document.getElementById('btn-phase').onclick  = advancePhase;
 btnBoss.onclick = summonBoss;
 btnNuke.onclick = activateNuke;
+btnWep.addEventListener('click',e=>{ e.preventDefault(); toggleWep(); });
+btnWep.addEventListener('touchstart',e=>{ e.preventDefault(); toggleWep(); },{passive:false});
+
+// ── settings (menu) ──────────────────────────────────────────────────────────────
+const setSoundBtn = document.getElementById('set-sound');
+const themeManha  = document.getElementById('theme-manha');
+const themeNoite  = document.getElementById('theme-noite');
+setSoundBtn.onclick = ()=>{
+    soundOn = !soundOn;
+    setSoundBtn.textContent = soundOn ? 'LIGADO' : 'DESLIGADO';
+    setSoundBtn.classList.toggle('on', soundOn);
+    setSoundBtn.classList.toggle('off', !soundOn);
+    if(soundOn){ initAudio(); sfx('buy'); }
+};
+function setTheme(t){
+    phase1Theme = t;
+    themeManha.classList.toggle('active', t==='manha');
+    themeNoite.classList.toggle('active', t==='noite');
+    applyPhase1Theme();
+}
+themeManha.onclick = ()=>setTheme('manha');
+themeNoite.onclick = ()=>setTheme('noite');
 
 document.getElementById('btn-fs').onclick = ()=>{
     if(document.fullscreenElement){ document.exitFullscreen&&document.exitFullscreen(); }
@@ -1343,36 +1637,35 @@ document.getElementById('btn-fs').onclick = ()=>{
 
 // ── shop ──────────────────────────────────────────────────────────────────────
 const ITEMS=[
-    { id:'rocket',    name:'Foguete',       icon:'🚀',    desc:'Desbloqueia foguete. Segure botão dir + clique esq para lançar.', price:15, req:null },
-    { id:'rocketBig', name:'Foguete XL',    icon:'🚀⬆️', desc:'Foguete maior, área de impacto expandida.', price:25, req:'rocket' },
-    { id:'rocketLaser',name:'Foguete Laser',icon:'⚡🚀',  desc:'O foguete dispara raios laser para os lados enquanto sobe.', price:40, req:'rocket' },
-    { id:'bazooka',   name:'Bazuca',        icon:'💣',    desc:'Projétil lento com explosão em área. Tecla [2] / toque no slot.', price:50, req:null },
-    { id:'character', name:'Personagem',    icon:'🧍🔫',  desc:'Personagem com espingarda, vida e pulo! Abre o cenário com chão, árvore e esquilos.', price:80, req:null },
-    { id:'charLaser', name:'Laser Duplo',   icon:'⚡🔫',  desc:'O tiro do personagem vira um laser contínuo DUPLO. Segure e mire.', price:60, req:'character' },
-    // ── 10 novas habilidades ──
-    { id:'dblJump',   name:'Pulo Duplo',    icon:'🦶🦶',  desc:'Pule uma segunda vez no ar.', price:30, req:'character' },
-    { id:'rapidFire', name:'Cadência Rápida',icon:'⚡🔫', desc:'A espingarda recarrega quase 2x mais rápido.', price:35, req:'character' },
-    { id:'spreadShot',name:'Tiro Espalhado',icon:'🔱',    desc:'A espingarda dispara muito mais chumbo e mais aberto.', price:40, req:'character' },
-    { id:'piercing',  name:'Munição Perfurante',icon:'🎯',desc:'O chumbo atravessa e mata vários alvos em linha.', price:45, req:'character' },
-    { id:'moveFast',  name:'Botas Velozes', icon:'👟',    desc:'Aumenta bastante a velocidade de corrida.', price:30, req:'character' },
-    { id:'maxHp',     name:'Colete Reforçado',icon:'🦺',  desc:'+3 corações de vida máxima (total 8).', price:50, req:'character' },
-    { id:'regen',     name:'Regeneração',   icon:'💚',    desc:'Recupera 1 coração a cada poucos segundos.', price:55, req:'character' },
-    { id:'shield',    name:'Escudo de Energia',icon:'🛡️',desc:'Um escudo bloqueia 1 dano e recarrega sozinho.', price:60, req:'character' },
-    { id:'laserTurbo',name:'Laser Turbo',   icon:'🔴',    desc:'Laser duplo mais grosso e com muito mais dano.', price:70, req:'charLaser' },
-    { id:'fury',      name:'Fúria',         icon:'😤',    desc:'Dobra o dano de TODAS as armas contra o chefão.', price:65, req:'character' },
-    { id:'soulMagnet',name:'Ímã de Almas',  icon:'🧲💀',  desc:'As almas (💀) dos inimigos abatidos voam até você e dão caveiras bônus.', price:55, req:'character' },
+    { id:'rocket',    name:'Foguete',       icon:'🚀',    desc:'Desbloqueia foguete. Segure botão dir + clique esq para lançar.', price:20, req:null },
+    { id:'rocketBig', name:'Foguete XL',    icon:'🚀⬆️', desc:'Foguete maior, área de impacto expandida.', price:40, req:'rocket' },
+    { id:'rocketLaser',name:'Foguete Laser',icon:'⚡🚀',  desc:'O foguete dispara raios laser para os lados enquanto sobe.', price:75, req:'rocket' },
+    { id:'bazooka',   name:'Bazuca',        icon:'💣',    desc:'Projétil lento com explosão em área. Tecla [2] / toque no slot.', price:90, req:null },
+    { id:'character', name:'Personagem',    icon:'🧍🔫',  desc:'Personagem com espingarda, vida e pulo! Abre o cenário com chão, árvore e esquilos.', price:120, req:null },
+    { id:'charLaser', name:'Laser',         icon:'⚡🔫',  desc:'NOVA ARMA! Raio contínuo duplo. Alterne Doze/Laser com Q ou o botão na tela.', price:130, req:'character' },
+    { id:'dblJump',   name:'Pulo Duplo',    icon:'🦶🦶',  desc:'Pule uma segunda vez no ar.', price:45, req:'character' },
+    { id:'rapidFire', name:'Cadência Rápida',icon:'⚡🔫', desc:'A espingarda recarrega quase 2x mais rápido.', price:55, req:'character' },
+    { id:'spreadShot',name:'Tiro Espalhado',icon:'🔱',    desc:'A espingarda dispara muito mais chumbo e mais aberto.', price:65, req:'character' },
+    { id:'piercing',  name:'Munição Perfurante',icon:'🎯',desc:'O chumbo atravessa e mata vários alvos em linha.', price:70, req:'character' },
+    { id:'moveFast',  name:'Botas Velozes', icon:'👟',    desc:'Aumenta bastante a velocidade de corrida.', price:45, req:'character' },
+    { id:'maxHp',     name:'Colete Reforçado',icon:'🦺',  desc:'+3 corações de vida máxima (total 8).', price:80, req:'character' },
+    { id:'regen',     name:'Regeneração',   icon:'💚',    desc:'Recupera 1 coração a cada poucos segundos.', price:85, req:'character' },
+    { id:'shield',    name:'Escudo de Energia',icon:'🛡️',desc:'Um escudo bloqueia 1 dano e recarrega sozinho.', price:95, req:'character' },
+    { id:'laserTurbo',name:'Laser Turbo',   icon:'🔴',    desc:'Laser mais grosso e com muito mais dano.', price:130, req:'charLaser' },
+    { id:'fury',      name:'Fúria',         icon:'😤',    desc:'Dobra o dano de TODAS as armas contra o chefão.', price:100, req:'character' },
+    { id:'soulMagnet',name:'Ímã de Almas',  icon:'🧲💀',  desc:'As almas (💀) dos inimigos abatidos voam até você e dão caveiras bônus.', price:85, req:'character' },
     // ── FASE 2 (caverna): 10 novos poderes + Nuke Bomb Master ──
-    { id:'hpUp2',       name:'Armadura de Placas', icon:'🛡️🦾', desc:'+3 corações de vida máxima (total 11).', price:90,  req:'character', minLevel:2 },
-    { id:'regen2',      name:'Regeneração Veloz',  icon:'💗',    desc:'Regenera vida quase 2x mais rápido.',    price:85,  req:'regen',     minLevel:2 },
-    { id:'shield2',     name:'Escudo Recarga+',    icon:'🛡️⚡', desc:'O escudo de energia recarrega bem mais rápido.', price:95, req:'shield', minLevel:2 },
-    { id:'dblJump2',    name:'Pulo Triplo',        icon:'🦅',    desc:'Pule uma TERCEIRA vez no ar.',           price:80,  req:'dblJump',   minLevel:2 },
-    { id:'moveFast2',   name:'Turbo Booster',      icon:'🚀👟',  desc:'Velocidade de corrida ainda maior.',     price:80,  req:'moveFast',  minLevel:2 },
-    { id:'rapidFire2',  name:'Metralhadora',       icon:'🔫🔥',  desc:'Espingarda com cadência altíssima.',     price:100, req:'rapidFire', minLevel:2 },
-    { id:'laserMega',   name:'Laser Mega',         icon:'🟥',    desc:'Laser duplo gigante e devastador.',      price:120, req:'laserTurbo',minLevel:2 },
-    { id:'fury2',       name:'Fúria Máxima',       icon:'👹',    desc:'TRIPLICA o dano de todas as armas no chefão.', price:130, req:'fury', minLevel:2 },
-    { id:'explosiveShot',name:'Chumbo Explosivo',  icon:'💥',    desc:'Cada chumbo explode e atinge vários alvos.', price:110, req:'character', minLevel:2 },
-    { id:'vampire',     name:'Vampirismo',         icon:'🧛',    desc:'Chance de recuperar vida a cada abate.', price:105, req:'character', minLevel:2 },
-    { id:'nuke',        name:'Nuke Bomb Master',   icon:'☢️💣',  desc:'ARMA SUPREMA! Botão ☢️ limpa a tela e causa dano massivo no chefão (recarrega em ~20s). Tecla N.', price:150, req:'character', minLevel:2 },
+    { id:'hpUp2',       name:'Armadura de Placas', icon:'🛡️🦾', desc:'+3 corações de vida máxima (total 11).', price:150, req:'character', minLevel:2 },
+    { id:'regen2',      name:'Regeneração Veloz',  icon:'💗',    desc:'Regenera vida quase 2x mais rápido.',    price:140, req:'regen',     minLevel:2 },
+    { id:'shield2',     name:'Escudo Recarga+',    icon:'🛡️⚡', desc:'O escudo de energia recarrega bem mais rápido.', price:150, req:'shield', minLevel:2 },
+    { id:'dblJump2',    name:'Pulo Triplo',        icon:'🦅',    desc:'Pule uma TERCEIRA vez no ar.',           price:130, req:'dblJump',   minLevel:2 },
+    { id:'moveFast2',   name:'Turbo Booster',      icon:'🚀👟',  desc:'Velocidade de corrida ainda maior.',     price:130, req:'moveFast',  minLevel:2 },
+    { id:'rapidFire2',  name:'Metralhadora',       icon:'🔫🔥',  desc:'Espingarda com cadência altíssima.',     price:180, req:'rapidFire', minLevel:2 },
+    { id:'laserMega',   name:'Laser Mega',         icon:'🟥',    desc:'Laser gigante e devastador.',            price:240, req:'laserTurbo',minLevel:2 },
+    { id:'fury2',       name:'Fúria Máxima',       icon:'👹',    desc:'TRIPLICA o dano de todas as armas no chefão.', price:230, req:'fury', minLevel:2 },
+    { id:'explosiveShot',name:'Chumbo Explosivo',  icon:'💥',    desc:'Cada chumbo explode e atinge vários alvos.', price:190, req:'character', minLevel:2 },
+    { id:'vampire',     name:'Vampirismo',         icon:'🧛',    desc:'Chance de recuperar vida a cada abate.', price:170, req:'character', minLevel:2 },
+    { id:'nuke',        name:'Nuke Bomb Master',   icon:'☢️💣',  desc:'ARMA SUPREMA! ESPAÇO/botão ☢️ limpa a tela e causa dano massivo no chefão (recarrega ~20s).', price:320, req:'character', minLevel:2 },
 ];
 
 function renderShop(){
@@ -1417,9 +1710,10 @@ function doBuy(id,price){
         charHint.classList.add('vis');
         buildGrass();
     }
-    if(id==='charLaser'){ charHint.innerHTML='A/D ou ← → mover · Espaço = pular<br>Segure clique = laser duplo'; }
+    if(id==='charLaser'){ charHint.innerHTML='W/↑ = pular · Espaço = item (Nuke)<br>Q = trocar Doze/Laser · segure clique = atirar'; }
     if(id==='maxHp'||id==='hpUp2'){ ch.maxHp=baseMaxHp(); ch.hp=ch.maxHp; }
-    refreshWHUD(); updateMobileControls(); updateBossButton(); updateNukeButton(); refreshHearts();
+    sfx('buy');
+    refreshWHUD(); updateMobileControls(); updateBossButton(); updateNukeButton(); updateWepHUD(); refreshHearts();
     renderShop();
 }
 document.getElementById('btn-loja').onclick=()=>{ renderShop(); lojaOv.classList.add('open'); };
@@ -1435,8 +1729,10 @@ window.addEventListener('keydown',e=>{
     keys[e.code]=true;
     if(e.code==='Digit1'&&P.rocket)  { currentWep=1; refreshWHUD(); }
     if(e.code==='Digit2'&&P.bazooka) { currentWep=2; refreshWHUD(); }
-    if(e.code==='Space'||e.code==='KeyW'||e.code==='ArrowUp'){ jump(); e.preventDefault(); }
+    if(e.code==='KeyW'||e.code==='ArrowUp'){ jump(); e.preventDefault(); }
+    if(e.code==='Space'){ activateNuke(); e.preventDefault(); }   // Espaço = usar item (Nuke)
     if(e.code==='KeyN') activateNuke();
+    if(e.code==='KeyQ') toggleWep();
 });
 window.addEventListener('keyup',e=>keys[e.code]=false);
 
@@ -1448,16 +1744,17 @@ function launchRocket(x){
         startCD(CD_BAZOOKA,'💣 RECARREGANDO...');
         return;
     }
-    if(!P.rocket){ showLocked(); return; }
+    if(!P.rocket){ showLocked('🔒 Compre o Foguete na Loja!'); return; }
     if(!weaponReady)return;
     rockets.push({x,y:canvas.height+10,speed:P.rocketBig?13:16,tick:0,big:P.rocketBig});
-    startCD(CD_ROCKET,'🚀 RECARREGANDO...');
+    startCD(CD_ROCKET,'🚀 RECARREGANDO...'); sfx('rocket');
 }
 function handleTap(mx,my){
     if(gameState!=='playing') return;
     if(P.character && ch.shotCD<=0){
         fireShotgun(ch.x,ch.y-10,mx,my);
-        ch.shotCD = P.rapidFire ? 20 : 38;
+        ch.shotCD = P.rapidFire2 ? 12 : (P.rapidFire ? 20 : 38);
+        sfx('shoot');
     }
     for(let b of birds){
         if(b.dead)continue;
@@ -1481,7 +1778,7 @@ function handleTap(mx,my){
 canvas.addEventListener('mousedown',e=>{
     if(e.button!==0 || gameState!=='playing') return;
     if(rightHeld){ launchRocket(mouseX); return; }
-    if(P.charLaser && P.character){ charFiring=true; laserAim.x=mouseX; laserAim.y=mouseY; return; }
+    if(P.character && playerWep==='laser' && P.charLaser){ charFiring=true; laserAim.x=mouseX; laserAim.y=mouseY; return; }
     handleTap(e.clientX, e.clientY);
 });
 
@@ -1502,7 +1799,7 @@ canvas.addEventListener('touchstart',e=>{
         }
     } else if(playTouches.size===1){
         const t=e.changedTouches[0];
-        if(P.charLaser && P.character){ charFiring=true; laserAim.x=t.clientX; laserAim.y=t.clientY; }
+        if(P.character && playerWep==='laser' && P.charLaser){ charFiring=true; laserAim.x=t.clientX; laserAim.y=t.clientY; }
         else handleTap(t.clientX,t.clientY);
     }
 },{passive:false});
@@ -1559,12 +1856,14 @@ function animate(now){
     tickCD(now);
     const playing = gameState==='playing';
 
-    // cave backdrop on level 2
-    if(level===2) drawCaveBackdrop();
+    // backdrop per level
+    if(level===1) drawLevel1Sky();
+    else if(level===2) drawCaveBackdrop();
+    else if(level===3) drawHellBackdrop();
 
     // dramatic tint when a boss is around
     if(boss.active){
-        const c = boss.type==='heitor' ? '80,0,0' : '0,50,90';
+        const c = boss.type==='heitor' ? '80,0,0' : (boss.type==='henrique' ? '0,50,90' : '90,10,60');
         const sg=ctx.createLinearGradient(0,0,0,canvas.height*.6);
         sg.addColorStop(0,'rgba('+c+',.45)'); sg.addColorStop(1,'rgba('+c+',0)');
         ctx.fillStyle=sg; ctx.fillRect(0,0,canvas.width,canvas.height*.6);
@@ -1666,15 +1965,19 @@ function animate(now){
             boss.y += (boss.baseY-boss.y)*0.05;
             if(Math.abs(boss.y-boss.baseY)<3){ boss.y=boss.baseY; boss.entering=false; }
         } else {
-            boss.x = canvas.width*.5 + Math.sin(boss.tick*0.02)*canvas.width*0.32;
-            boss.y = boss.baseY + Math.sin(boss.tick*0.045)*28;
+            const spdMul = boss.type==='tropeira' ? 0.36 : 0.28;
+            boss.x = canvas.width*.5 + Math.sin(boss.tick*0.024)*canvas.width*spdMul;
+            boss.y = boss.baseY + Math.sin(boss.tick*0.05)*32;
             const enrage = boss.hp < boss.maxHp*.5;
             if(boss.type==='heitor'){
-                if(--boss.atkCD<=0){ spawnBossShot('fire'); boss.atkCD = enrage?46:80; }
-                if(--boss.atk2CD<=0){ spawnBallVolley();   boss.atk2CD = enrage?150:220; }
-            } else {
-                if(--boss.atkCD<=0){ spawnBossShot('water'); boss.atkCD = enrage?52:82; }
-                if(--boss.atk2CD<=0){ spawnTsunami();        boss.atk2CD = enrage?200:300; }
+                if(--boss.atkCD<=0){ spawnBossShot('fire'); boss.atkCD = enrage?32:60; }
+                if(--boss.atk2CD<=0){ spawnBallVolley();    boss.atk2CD = enrage?95:150; }
+            } else if(boss.type==='henrique'){
+                if(--boss.atkCD<=0){ spawnBossShot('water'); boss.atkCD = enrage?34:58; }
+                if(--boss.atk2CD<=0){ spawnTsunami();        boss.atk2CD = enrage?150:230; }
+            } else { // Tropeira — épica: leque de fogo + chuva de meteoros + tsunami de fogo
+                if(--boss.atkCD<=0){ spawnFireSpread(enrage?5:3); boss.atkCD = enrage?40:66; }
+                if(--boss.atk2CD<=0){ spawnBallVolley(true);      boss.atk2CD = enrage?80:120; }
             }
         }
         drawBoss();
@@ -1770,7 +2073,7 @@ function animate(now){
         if(!(ch.iframes>0 && Math.floor(frameTick/4)%2===0)){
             drawCharacter(ch.x,ch.y,ch.facing,ch.walking,ch.frame);
         }
-        if(charFiring && P.charLaser && playing) fireCharLaser();
+        if(charFiring && P.charLaser && playing){ fireCharLaser(); if(frameTick%6===0) sfx('laser'); }
     }
 
     // shotgun pellets
@@ -1819,7 +2122,7 @@ function animate(now){
             }
             s.x+=s.vx; s.y+=s.vy;
             const gy=groundY(); if(s.y>gy-6){ s.y=gy-6; s.vy*=-0.35; s.vx*=0.7; }
-            if(d<26){ addKills(1); floater(s.x,s.y-6,'+1💀','#cfe4ff'); souls.splice(i,1); continue; }
+            if(d<26){ addKills(1); floater(s.x,s.y-6,'+1💀','#cfe4ff'); sfx('soul'); souls.splice(i,1); continue; }
         } else {
             s.vy += 0.16; s.x+=s.vx; s.y+=s.vy;
         }
